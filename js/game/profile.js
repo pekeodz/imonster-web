@@ -108,7 +108,7 @@ function migrate(p) {
   p.inventory ||= []; p.equipped ||= {}; p.skills ||= {}; p.stats ||= { kills: 0, deaths: 0, chests: 0 };
   p.settings ||= { music: 0.6, sound: 0.8, lang: 'en' };
   for (const s of EQUIP_SLOTS) if (p.equipped[s] === null) delete p.equipped[s];
-  p.diamond ||= 0; p.pets ||= {}; p.wardrobe ||= []; p.fashion ||= {}; p.maxFloorHard ||= 0; p.labBest ||= 0;
+  p.diamond ||= 0; p.diaries ||= []; p.pets ||= {}; p.wardrobe ||= []; p.fashion ||= {}; p.maxFloorHard ||= 0; p.labBest ||= 0;
   if (!Object.keys(p.pets).length) { p.pets[100000] = { lv: 1, star: 1, exp: 0 }; p.petActive = 100000; } // Lina is free
 }
 export { migrate };

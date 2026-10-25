@@ -206,6 +206,8 @@ export class UI {
     for (const o of t.objects) if (t.revealed[o.x + o.y * g.w] && !o.open) put(o.x, o.y, 255, 210, 60);
     for (const u of t.units) if (!u.isHero && u.alive && t.revealed[u.x + u.y * g.w]) put(u.x, u.y, 230, 40, 40);
     if (t.pass && t.revealed[t.pass[0] + t.pass[1] * g.w]) put(t.pass[0], t.pass[1], 80, 255, 120);
+    const FC = { 1: [235, 50, 50], 2: [245, 220, 50], 3: [70, 130, 245], 4: [80, 220, 80] };
+    for (const f of t.flags || []) { const c = FC[f.color] || FC[1]; put(f.x, f.y, c[0], c[1], c[2]); }
     if (t.hero) put(t.hero.x, t.hero.y, 60, 160, 255);
     x.putImageData(img, 0, 0);
   }
@@ -267,7 +269,9 @@ export class UI {
       h('div', { class: 'statbox' },
         h('span', {}, 'Tầng cao nhất', h('b', {}, p.maxFloor)), h('span', {}, 'Cấp độ', h('b', {}, p.level)),
         h('span', {}, 'Quái đã hạ', h('b', {}, fmt(p.stats.kills))), h('span', {}, 'Rương đã mở', h('b', {}, fmt(p.stats.chests))),
-        h('span', {}, 'Số lần gục', h('b', {}, fmt(p.stats.deaths))), h('span', {}, 'Vàng', h('b', {}, fmt(p.gold))))));
+        h('span', {}, 'Số lần gục', h('b', {}, fmt(p.stats.deaths))), h('span', {}, 'Vàng', h('b', {}, fmt(p.gold))),
+        h('span', {}, 'Kỷ lục Khó', h('b', {}, p.maxFloorHard || 0)), h('span', {}, 'Kỷ lục Vô tận', h('b', {}, p.labBest || 0))),
+      h('div', { class: 'center', style: { marginTop: 'calc(14*var(--u))' } }, h('button', { class: 'btn', onclick: () => this.diaryBook() }, `Nhật ký thám hiểm (${(p.diaries || []).length})`))));
   }
 
   // ------------------------------------------------ inventory & equipment
@@ -378,6 +382,7 @@ export class UI {
         h('div', { class: 'tabs' }, h('button', { class: tab === 'eq' ? 'on' : '', onclick: () => { tab = 'eq'; render(); } }, 'Trang bị'), h('button', { class: tab === 'pot' ? 'on' : '', onclick: () => { tab = 'pot'; render(); } }, 'Thuốc & túi'), h('button', { class: tab === 'mer' ? 'on' : '', onclick: () => { tab = 'mer'; render(); } }, 'Thương nhân'), h('button', { class: tab === 'fas' ? 'on' : '', onclick: () => { tab = 'fas'; render(); } }, 'Thời trang')));
       const list = h('div', { class: 'shoplist' });
       if (tab === 'eq') {
+        list.append(this.npcTalk(1));
         for (const st of this.stock) {
           const it = st.it; const cost = price(it); const q = it.q;
           list.append(h('div', { class: 'shopitem' },

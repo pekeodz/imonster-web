@@ -172,7 +172,7 @@ class Game {
       this.refillPots(); fullHeal();
     }
     this.ui.closeModals();
-    this.ui.loading(); this.ui.progress(0.3, 'Đang vào tháp...');
+    this.ui.loading(); this.ui.progress(0.3, 'Đang vào tháp...'); this.ui.loadTip?.();
     story('entering tower', { map_id: +mapId });
     const lastId = this.tower ? this.tower.mapId : 0;
     const t = new Tower(this);

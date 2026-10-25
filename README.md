@@ -26,6 +26,14 @@ dựng lại từ chính file APK 1.4.1: **toàn bộ hình ảnh, nhạc, dữ 
 - **Thương nhân trại**: cuộn công thức, nguyên liệu (trả kim cương hoặc đổi vật phẩm theo `shop.csv`). **Kim cương** kiếm từ rương kim cương/boss, nhiệm vụ, phòng thí nghiệm.
 - Dùng được thêm vật phẩm: cuộn công thức, rương ngẫu nhiên, gói bình thuốc, cuộn dịch chuyển, bom, tẩy điểm kỹ năng, khế ước thú cưng.
 
+### Bổ sung ở bản 3
+- **Đồ trang trí bản đồ**: 598 mẫu trang trí gốc (`ornament.csv` + 115 cảnh CocosBuilder `tower/*.ccbi` được chuyển sang `data/orna.json`): đuốc, cờ, tượng lớn, ván vỡ, vết nứt, xích, đom đóm/tia lửa (hiệu ứng hạt)… đặt theo đúng mẫu ô tường/sàn của bản gốc, có hoạt ảnh.
+- **Nhật ký thám hiểm**: 59 trang nhật ký (`diary.csv`) rơi ngẫu nhiên trong tháp theo tầng; đọc lại trong Thành tích → Nhật ký thám hiểm.
+- **Lời thoại NPC** (`tips.csv`) ở cửa hàng, lò rèn và màn hình tải.
+- **Hạt chúc phúc**: chọn khi cường hoá để tăng tỉ lệ thành công (+4% đến +25%).
+- **Quầy đổi trang bị** và **quầy sự kiện** (shop.csv storage 4 và 5), đổi bằng Mảnh Thánh, Ngọc Thợ Cung, vàng…
+- **Cờ đánh dấu** (pháo hiệu đỏ/vàng/xanh/lục): cắm trên sàn, hiện trên bản đồ nhỏ.
+
 Nội dung chữ trong game là của bản gốc (Anh / 中文 / 日本語 / 한국어 – đổi trong Cài đặt); bản gốc không có tiếng Việt. Kỹ năng thú cưng và chế độ Khó trong bản gốc nằm ở phần C++/máy chủ nên công thức ở đây là phỏng theo mô tả.
 
 ## Chạy thử trên máy
@@ -77,7 +85,7 @@ js/ui/panels.js       chế độ chơi, thú cưng, nhiệm vụ, lò rèn (kh�
 lua/                  script gốc của game (formular, skill, monsterai, story...)
 data/                 bảng dữ liệu gốc đã chuyển sang JSON + bảng chữ 5 ngôn ngữ
 assets/               ảnh (WebP), khung xương Spine, nhạc & hiệu ứng âm thanh
-tools/                script trích xuất từ APK (không cần khi chạy game)
+tools/                script trích xuất từ APK, đọc .ccbi (không cần khi chạy game)
 ```
 
 ## Bản quyền

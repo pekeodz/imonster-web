@@ -12,6 +12,8 @@ import { Combat, AFFIX_NAMES } from './combat.js';
 import { story } from './story.js';
 import { heroPassives, buffMods, adventureSkill, invalidatePassives } from './skills.js';
 import { Traps } from './traps.js';
+import { Ornaments, loadOrna } from './ornaments.js';
+import { pickDiary } from './diary.js';
 import { PetRuntime, activePet } from './pets.js';
 import { Modes, lookEquips } from './modes.js';
 import { Daily } from './daily.js';
@@ -41,10 +43,12 @@ const OBJ_ART = {
   22: ['object-12-1', 'object-12-1', 'ui-003'], 23: ['object-14-2', 'object-14-2', 'object-6-1'], 24: ['object-13-1', 'object-13-1', 'event-1-2'],
   25: ['object-11-2', 'object-11-2', 'itemsound-3'], 26: ['object-14-2', 'object-14-2', 'object-6-1'], 27: ['object-11-1', 'object-11-1', 'talking'],
   28: ['object-16-1', 'object-16-1', 'ui-003'], 31: ['object-11-1', 'object-11-1', 'talking'],
+  40: ['object-13-2', 'object-13-1', 'ui-003'], // diary page (diary.csv)
 };
 const SCRIPT_TYPES = new Set([19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 31]);
-const SPRING_TINT = { 9: rgba(1, .55, .55), 10: rgba(.55, .7, 1), 11: rgba(1, 1, .6), 12: rgba(1, .5, .5), 13: rgba(.5, .7, 1), 14: rgba(1, 1, .5) };
-const DESTROYED = new Set([4, 5]); // become passable when broken
+const SPRING_TINT = { 40: rgba(1, .78, .55), 9: rgba(1, .55, .55), 10: rgba(.55, .7, 1), 11: rgba(1, 1, .6), 12: rgba(1, .5, .5), 13: rgba(.5, .7, 1), 14: rgba(1, 1, .5) };
+const FLAG_COLORS = { 1: [0.9, 0.2, 0.2], 2: [0.95, 0.85, 0.2], 3: [0.25, 0.5, 0.95], 4: [0.3, 0.85, 0.3] };
+const DESTROYED = new Set([4, 5, 40]); // become passable when broken
 
 export class Tower {
   constructor(game) { this.g = game; this.gfx = game.gfx; this.ui = game.ui; this.time = 0; }
@@ -67,6 +71,9 @@ export class Tower {
     const trapIds = Traps.wanted(this);
     if (trapIds.length && !(+row.Generate === 1)) this.traps.build(trapIds);
     this.revealed = new Uint8Array(this.grid.w * this.grid.h);
+    this.orna = new Ornaments(this);
+    try { await loadOrna(); this.orna.build(); } catch (e) { console.warn('ornaments', e); }
+    const on = this.orna.sheets();
     const ap = activePet();
     if (ap) this.pet = new PetRuntime(this, ap.id, ap);
     // assets
@@ -78,6 +85,8 @@ export class Tower {
       this.gfx.loadTex('ui/effect-1-2-3'), this.gfx.loadTex('ui/effect-1-2-6'), this.gfx.loadTex('ui/effect-1-4-1'),
       this.gfx.loadSheet('map/hidden-1'),
       this.pet ? this.pet.load(loadSkeletonData, SpineActor) : null,
+      ...on.sheets.map(k => this.gfx.loadSheet(k).catch(() => null)),
+      ...on.tex.map(k => this.gfx.loadTex(k).catch(() => null)),
     ]);
     await this.spawnHero();
     await Promise.all(this.units.filter(u => !u.isHero).map(u => this.loadMonsterActor(u)));
@@ -137,6 +146,8 @@ export class Tower {
     for (let i = 0; i < (cfg.altar | 0); i++) objList.push(this.rng.pick([9, 10, 11, 12, 13, 14]));
     if (this.floor >= 3 && this.rng.chance(0.25)) objList.push(OBJ.OPEN_MAP);
     if (this.floor >= 5 && this.rng.chance(0.3)) objList.push(OBJ.RETURN_STELE);
+    const diary = this.lab ? null : pickDiary(this.floor, this.rng);
+    if (diary) objList.push(40);
     for (const type of objList) {
       for (let attempt = 0; attempt < 30; attempt++) {
         const pos = take((x, y) => wallNeighbors(x, y) >= 2 && wallNeighbors(x, y) < 4);
@@ -144,7 +155,7 @@ export class Tower {
         const [x, y] = pos;
         this.blocked[x + y * g.w] = 1;
         if (!this.connected() || !this.allObjectsReachable([...this.objects, { x, y }])) { this.blocked[x + y * g.w] = 0; continue; }
-        this.objects.push({ type, x, y, open: false });
+        this.objects.push(type === 40 ? { type, x, y, open: false, diary } : { type, x, y, open: false });
         break;
       }
     }
@@ -441,6 +452,7 @@ export class Tower {
       case 12: p.red = Math.min(this.g.maxPot('red'), p.red + 3); this.floatText(fx, fy, '+3 bình máu', '#ff7b7b'); break;
       case 13: p.blue = Math.min(this.g.maxPot('blue'), p.blue + 3); this.floatText(fx, fy, '+3 bình mana', '#7bb4ff'); break;
       case 14: p.red = Math.min(this.g.maxPot('red'), p.red + 2); p.blue = Math.min(this.g.maxPot('blue'), p.blue + 2); this.floatText(fx, fy, '+2 / +2 bình', '#fff17b'); break;
+      case 40: if (o.diary) { P.data.diaries ||= []; if (!P.data.diaries.includes(o.diary)) P.data.diaries.push(o.diary); save(); this.ui.diary(o.diary, true); } break;
       case 15: this.ui.confirm('Dùng bia đá để trở về trại? (giữ lại đồ đã nhặt)', () => this.g.toCamp(true)); o.open = false; break;
       case 16: this.revealAll(); this.ui.toast(S('249') || 'Đã soi sáng bản đồ tầng này'); break;
     }
@@ -744,6 +756,7 @@ export class Tower {
       const fs = floorStyle(g, x, y);
       if (fs) gfx.drawFrame(sheet, pre + fs, x * T, -(y + 1) * T, { ax: 0, ay: 0 });
     }
+    this.orna?.drawTiles(gfx);
     // exit stairs
     if (this.pass && this.revealed[this.idx(this.pass[0], this.pass[1])]) {
       gfx.drawTex(gfx.tex('map/floor'), this.pass[0] * T + 50, -(this.pass[1] * T + 50));
@@ -763,6 +776,8 @@ export class Tower {
         const ws = wallStyle(g, x, y);
         if (ws) gfx.drawFrame(sheet, pre + ws, x * T, -y * T, { ax: 0, ay: 1 });
       }
+      this.orna?.drawRow(gfx, y);
+      for (const f of this.flags || []) if (f.y === y) this.drawFlag(f);
       if (this.traps.list.length) this.traps.draw(gfx, this.time, this.revealed, (a, b) => this.idx(a, b), y);
       for (const o of this.objects) {
         if (o.y !== y || !this.revealed[this.idx(o.x, o.y)]) continue;
@@ -797,6 +812,20 @@ export class Tower {
     }
     return false;
   }
+  // signal flags (item UseEffect 13): a coloured marker the player leaves on the floor
+  placeFlag(color) {
+    const h = this.hero; this.flags ||= [];
+    this.flags = this.flags.filter(f => !(f.x === h.x && f.y === h.y));
+    this.flags.push({ x: h.x, y: h.y, color });
+    Audio2.play('ui-003');
+  }
+  drawFlag(f) {
+    const C = FLAG_COLORS[f.color] || FLAG_COLORS[1];
+    const x = f.x * T + 50, y = -(f.y * T + 50) - 30, sw = Math.sin(this.time * 3 + f.x) * 4;
+    this.gfx.drawRect(x - 3, y, 6, 70, rgba(0.35, 0.22, 0.1, 1));
+    this.gfx.drawRect(x + 3, y + 40 + sw * 0.2, 34 + sw, 26, rgba(C[0], C[1], C[2], 1));
+    this.gfx.drawRect(x - 10, y - 4, 20, 8, rgba(0, 0, 0, 0.35));
+  }
   drawObject(o) {
     const art = OBJ_ART[o.type]; const gfx = this.gfx;
     if (o.actor) { const sk = o.actor.skeleton; o.actor.update(1 / 60); sk.x = o.x * T + 50; sk.y = -(o.y * T + 50) - 30; sk.updateWorldTransform(); gfx.drawSkeleton(sk); return; }
@@ -805,6 +834,7 @@ export class Tower {
     let name = o.open ? art[1] : art[0];
     let color = SPRING_TINT[o.type] || null;
     if (o.open && o.type >= 9 && o.type <= 14) color = rgba(0.45, 0.45, 0.45, 1);
+    if (o.type === 40 && o.open) return;
     if (o.open && DESTROYED.has(o.type)) { const a = Math.max(0, 1 - (o.t || 0) / 1.2); if (a <= 0) return; color = rgba(1, 1, 1, a); }
     let scale = 1;
     if (!o.open && o.type <= 3) scale = 1 + Math.sin(this.time * 3 + o.x) * 0.02;

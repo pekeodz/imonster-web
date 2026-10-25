@@ -12,6 +12,7 @@ import { PET_PRICE, petName, petIcon, petStats, petSkills, petSkillDesc, addPet,
 import { GEM, isGem, socketCount, gemAttrs, inlayCost, inlay, unsocket, breakupResult, breakup, knownRecipes, learnRecipe, recipeInputs, countItem, canCraft, recipeCost, craft, CATEGORY_VI } from '../game/craft.js';
 import { resetSkills } from '../game/skills.js';
 import { story } from '../game/story.js';
+import { diaryTitle, diaryText, diaryBooks } from '../game/diary.js';
 
 const fmt = n => (n | 0).toLocaleString('vi-VN');
 const dia = n => h('span', { class: 'money dia' }, h('i'), fmt(n));
@@ -175,7 +176,7 @@ Object.assign(UI.prototype, {
     story('open smithy', {});
     const panel = h('div', { class: 'panel inv pop' });
     const m = this.modal(panel, () => this.g.onEquipChanged());
-    let tab = tab0 || 'enh', sel = null, cat = 0;
+    let tab = tab0 || 'enh', sel = null, cat = 0, bead = null;
     const all = () => [...Object.entries(p.equipped).map(([s, it]) => ({ it, s })), ...p.inventory.filter(i => i.eq).map(it => ({ it }))];
     const grid = (items, onPick, badge) => {
       const g = h('div', { class: 'baggrid', style: { maxHeight: 'calc(420*var(--u))', flex: 'none' } });
@@ -187,6 +188,7 @@ Object.assign(UI.prototype, {
       panel.innerHTML = '';
       header(this, panel, m, 'Lò rèn');
       panel.append(tabs(tab, [['enh', 'Cường hoá'], ['gem', 'Khảm ngọc'], ['brk', 'Phân giải'], ['frg', 'Chế tạo']], k => { tab = k; sel = null; render(); }));
+      if (!sel) panel.append(this.npcTalk({ enh: 2, gem: 3, brk: 6, frg: 5 }[tab]));
       if (tab === 'enh') return renderEnh();
       if (tab === 'gem') return renderGem();
       if (tab === 'brk') return renderBrk();
@@ -200,15 +202,20 @@ Object.assign(UI.prototype, {
       if (!info || (sel.inte || 0) >= 6) box.append(h('p', {}, 'Đã cường hoá tối đa.'));
       else {
         const g0 = Math.round(info.gold || 0), d0 = Math.round(info.diamond || 0);
-        const rate = Math.round((info.success || 0) * 100);
+        const beads = p.inventory.filter(it => !it.eq && +DB.item.get(it.id)?.Type === 43);
+        if (bead && !p.inventory.includes(bead)) bead = null;
+        const bonus = bead ? (+DB.item.get(bead.id).Param || 0) : 0;
+        const rate = Math.min(100, Math.round((info.success || 0) * 100) + bonus);
         for (let i = 0; i < sel.base.length; i++) box.append(h('div', {}, attrText(sel.base[i].a, sel.base[i].v) + '  →  ' + Math.round(info.base?.[i]?.p1 ?? sel.base[i].v)));
-        box.append(h('div', {}, `Tỉ lệ thành công: ${rate}%`));
+        box.append(h('div', {}, `Tỉ lệ thành công: ${rate}%` + (bonus ? ` (+${bonus}% hạt chúc phúc)` : '')));
+        if (beads.length) box.append(h('div', { class: 'reqs' }, 'Hạt chúc phúc: ', beads.map(b => h('button', { class: 'slot q' + itemQuality(b) + (bead === b ? ' sel' : ''), style: { width: 'calc(70*var(--u))' }, title: itemName(b), onclick: () => { bead = bead === b ? null : b; render(); } }, h('img', { src: itemIcon(b) }), h('span', { class: 'n' }, '+' + DB.item.get(b.id).Param + '%')))));
         const useDia = d0 > 0 && (p.diamond || 0) >= d0;
         const costG = g0 + (useDia ? 0 : d0 * 200);
         box.append(h('div', { class: 'muted', style: { fontSize: 'calc(18*var(--u))' } }, d0 ? (useDia ? `Dùng ${d0} kim cương` : `Thiếu kim cương: đổi ${d0} kim cương thành ${fmt(d0 * 200)} vàng`) : ''));
         box.append(h('button', { class: 'btn green', disabled: p.gold < costG ? true : null, onclick: () => {
           if (p.gold < costG) return; p.gold -= costG; if (useDia) p.diamond -= d0;
-          if (Math.random() < (info.success || 0)) { sel.inte = (sel.inte || 0) + 1; sel.base.forEach((b, i) => b.v = Math.round(info.base?.[i]?.p1 ?? b.v)); this.toast('Thành công!'); Audio2.play('powerful-1'); }
+          if (bead) { removeItem(bead.uid, 1); if (!p.inventory.includes(bead)) bead = null; }
+          if (Math.random() * 100 < rate) { sel.inte = (sel.inte || 0) + 1; sel.base.forEach((b, i) => b.v = Math.round(info.base?.[i]?.p1 ?? b.v)); this.toast('Thành công!'); Audio2.play('powerful-1'); }
           else { this.toast('Thất bại...'); Audio2.play('cantmove-1'); }
           save(); render();
         } }, 'Cường hoá ', gold(costG), useDia ? dia(d0) : null));
@@ -277,10 +284,56 @@ Object.assign(UI.prototype, {
     panel.append(list);
   },
 
+  loadTip() {
+    const rows = DB.tipsRows || []; if (!rows.length || !this.loadEl) return;
+    const r = rows[Math.floor(Math.random() * rows.length)];
+    this.loadEl.append(h('div', { class: 'loadtip', html: '“' + richText(S(r.Content)) + '”' }));
+  },
+  // NPC shop talk (tips.csv): 1 merchant, 2 smith, 3 inlay, 4 grocer, 5 synthesis, 6 breakup
+  npcTalk(npc) {
+    const rows = DB.tipsRows.filter(r => +r.NPC === npc); if (!rows.length) return '';
+    const r = rows[Math.floor(Math.random() * rows.length)];
+    const face = { 1: 'npc-001', 2: 'npc-004', 3: 'npc-012', 4: 'npc-009', 5: 'npc-006', 6: 'npc-010' }[npc] || 'npc-001';
+    return h('div', { class: 'npctalk' }, h('img', { src: `assets/img/char/${face}.webp` }), h('div', { class: 'bubble', html: richText(S(r.Content)) }));
+  },
+  // ------------------------------------------------ diary pages (diary.csv)
+  diary(id, isNew) {
+    const m = this.modal(h('div', { class: 'panel pop diarypage', style: { top: 'calc(160*var(--u))' } },
+      h('button', { class: 'close', onclick: () => m.close() }),
+      isNew ? h('div', { class: 'center muted' }, 'Bạn nhặt được một trang nhật ký!') : null,
+      h('h2', {}, diaryTitle(id)),
+      h('div', { class: 'diarytext', html: richText(diaryText(id)).replace(/\n/g, '<br>') })));
+  },
+  diaryBook() {
+    const got = new Set(P.data.diaries || []);
+    const panel = h('div', { class: 'panel inv pop' }); const m = this.modal(panel);
+    panel.append(h('button', { class: 'close', onclick: () => m.close() }), h('h2', {}, 'Nhật ký thám hiểm'),
+      h('p', { class: 'center muted' }, `Đã tìm thấy ${got.size}/${DB.diaryRows.length} trang. Trang nhật ký rơi ngẫu nhiên trong tháp.`));
+    const list = h('div', { class: 'shoplist' });
+    for (const b of diaryBooks()) {
+      const n = b.ids.filter(i => got.has(i)).length;
+      list.append(h('div', { class: 'col', style: { background: '#fff5', borderRadius: 'calc(14*var(--u))', padding: 'calc(10*var(--u))' } },
+        h('b', {}, `${b.title}  (${n}/${b.ids.length})`),
+        h('div', { class: 'chips', style: { marginTop: 'calc(6*var(--u))' } }, b.ids.map((id, i) => h('button', { class: 'chip' + (got.has(id) ? ' on' : ''), disabled: got.has(id) ? null : true, onclick: () => this.diary(id) }, got.has(id) ? String(i + 1) : '?')))));
+    }
+    panel.append(list);
+  },
+
   // ------------------------------------------------ camp merchant (diamonds / exchange) + fashion
-  merchantRows() {
+  merchantRows(sub = 'mer') {
     const p = P.data;
-    return DB.shopRows.filter(r => (+r.Storage === 2 || +r.Storage === 3) && p.level >= (+r.MinLevel || 1) && (r.MaxLevel === '' || p.level <= +r.MaxLevel));
+    if (!this._obtainable) { // currencies that can actually be found offline (drops / recipes)
+      const dr = JSON.stringify(DB.dropRows || []); const o = new Set();
+      for (const m of dr.matchAll(/\d{6}/g)) o.add(+m[0]);
+      for (const r of DB.recipeRows) o.add(+r.Output);
+      this._obtainable = o;
+    }
+    const okCur = r => { const c = this.parseCost(r.Cost); return c.cur !== 4 || this._obtainable.has(c.id); };
+    if (sub === 'exc') return DB.shopRows.filter(r => +r.Storage === 4 && okCur(r) && p.level >= (+DB.equip.get(+r.ItemID)?.LevelReq || 1) - 5);
+    if (sub === 'evt') return DB.shopRows.filter(r => +r.Storage === 5 && okCur(r));
+    const rows = DB.shopRows.filter(r => (+r.Storage === 2 || +r.Storage === 3) && okCur(r) && p.level >= (+r.MinLevel || 1) && (r.MaxLevel === '' || p.level <= +r.MaxLevel));
+    // signal flags (UseEffect 13) for gold
+    return [...[610002, 610003, 610004, 610005].map(id => ({ ItemID: id, Cost: '1;0;300' })), ...rows];
   },
   parseCost(c) { const [cur, id, n] = String(c || '1;0;100').split(';').map(Number); return { cur, id, n }; },
   canPay(c) { const p = P.data; return c.cur === 2 ? (p.diamond || 0) >= c.n : c.cur === 4 ? countItem(c.id) >= c.n : p.gold >= c.n; },
@@ -291,7 +344,10 @@ Object.assign(UI.prototype, {
   },
   costEl(c) { return c.cur === 2 ? dia(c.n) : c.cur === 4 ? h('span', { class: 'money' }, h('img', { src: anyIcon(c.id), style: { width: 'calc(34*var(--u))' } }), `${countItem(c.id)}/${c.n}`) : gold(c.n); },
   merchantList(list, render) {
-    const rows = this.merchantRows(); const seen = new Set();
+    const sub = this._merSub || 'mer';
+    list.append(h('div', { class: 'chips' }, [['mer', 'Thương nhân'], ['exc', 'Đổi trang bị'], ['evt', 'Quầy sự kiện']].map(([k, l]) => h('button', { class: 'chip' + (sub === k ? ' on' : ''), onclick: () => { this._merSub = k; render(); } }, l))));
+    list.append(this.npcTalk(sub === 'mer' ? 4 : 1));
+    const rows = this.merchantRows(sub); const seen = new Set();
     for (const r of rows) {
       const key = r.ItemID + '|' + r.Cost; if (seen.has(key)) continue; seen.add(key);
       const c = this.parseCost(r.Cost); const id = +r.ItemID;
@@ -299,7 +355,7 @@ Object.assign(UI.prototype, {
       const isRecipe = +rec.UseEffect === 8 && knownRecipes().includes(+rec.Param);
       list.append(h('div', { class: 'shopitem' + (isRecipe ? ' known' : '') },
         h('div', { class: 'slot q' + anyQ(id) }, h('img', { src: anyIcon(id), loading: 'lazy' })),
-        h('div', { class: 'grow' }, h('div', { class: 'nm' }, anyName(id)), h('div', { class: 'muted', html: isRecipe ? 'Đã học' : richText(String(S(rec.ItemDesc) || '').split('\n')[0]) })),
+        h('div', { class: 'grow' }, h('div', { class: 'nm', style: DB.equip.has(id) ? { color: QUALITY_COLORS[anyQ(id)] === '#f2f2f2' ? '#3a2410' : QUALITY_COLORS[anyQ(id)] } : {} }, anyName(id)), h('div', { class: 'muted', html: isRecipe ? 'Đã học' : DB.equip.has(id) ? 'Yêu cầu Lv.' + (+rec.LevelReq || 1) : richText(String(S(rec.ItemDesc) || '').split(/\\n|\n/)[0]) })),
         h('button', { class: 'btn small', disabled: this.canPay(c) ? null : true, onclick: () => {
           const it = DB.equip.has(id) ? makeEquip(id, P.data.level) : makeItem(id, 1);
           if (!it || !this.canPay(c)) return;
@@ -307,7 +363,7 @@ Object.assign(UI.prototype, {
           this.pay(c); Audio2.play('ui-030'); save(); render();
         } }, this.costEl(c))));
     }
-    if (!list.children.length) list.append(h('p', { class: 'center' }, 'Thương nhân chưa có hàng cho cấp của bạn.'));
+    if (list.children.length <= 2) list.append(h('p', { class: 'center' }, 'Chưa có hàng cho cấp của bạn.'));
   },
   fashionList(list, render) {
     const p = P.data; p.wardrobe ||= []; p.fashion ||= {};
@@ -355,7 +411,7 @@ Object.assign(UI.prototype, {
         if (!free.length) { consume(); p.gold += 20000; this.toast('Đã có đủ thú cưng: nhận 20.000 vàng'); return; }
         const id = free[Math.floor(Math.random() * free.length)]; consume(); addPet(id); save(); this.toast('Nhận thú cưng mới: ' + petName(id)); Audio2.play('levelup-2'); return;
       }
-      case 13: this.toast('Pháo hiệu: hãy dùng ở nơi đặc biệt trong tháp'); return;
+      case 13: if (!t) { this.toast('Chỉ dùng được trong tháp'); return; } consume(); t.placeFlag(+r.Param || 1); this.toast('Đã cắm cờ đánh dấu'); this.hud(t); return;
       case 14: {
         consume();
         const grade = +r.Param || 1; const lv = Math.max(p.level, grade * 5);

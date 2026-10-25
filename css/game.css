@@ -207,3 +207,10 @@ select{font:inherit;font-weight:700;padding:calc(8*var(--u));border-radius:calc(
 .chips .chip{padding:0 calc(14*var(--u));height:calc(48*var(--u));font-size:calc(19*var(--u))}
 .ln.gem{color:#2a9db0}
 .shopitem.known{opacity:.6}
+.npctalk{display:flex;align-items:center;gap:calc(10*var(--u));margin:0 0 calc(10*var(--u))}
+.npctalk img{width:calc(86*var(--u));height:calc(86*var(--u));object-fit:contain;flex:none;filter:drop-shadow(0 2px 3px #0006)}
+.npctalk .bubble{position:relative;flex:1;background:#fff;border-radius:calc(16*var(--u));padding:calc(10*var(--u)) calc(14*var(--u));font-size:calc(19*var(--u));font-weight:700;color:#3a2410;box-shadow:0 2px 4px #0003}
+.npctalk .bubble::before{content:"";position:absolute;left:calc(-12*var(--u));top:50%;margin-top:calc(-10*var(--u));border:calc(10*var(--u)) solid transparent;border-right:calc(12*var(--u)) solid #fff;border-left:0}
+.diarypage{max-height:80%;display:flex;flex-direction:column}
+.diarytext{overflow-y:auto;font-size:calc(22*var(--u));line-height:1.45;background:#fff6;border-radius:calc(12*var(--u));padding:calc(14*var(--u));font-family:Georgia,serif;color:#3a2410}
+.loadtip{position:absolute;left:8%;right:8%;bottom:12%;text-align:center;font-size:calc(22*var(--u));color:#f5e6c8;text-shadow:0 0 4px #000}

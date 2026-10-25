@@ -102,6 +102,36 @@ export class Gfx {
     this._quad(s.tex, x0, y0, x1, y1, uvs, o.color);
     return true;
   }
+  // draw a sprite frame with an affine matrix m=[a,b,c,d,tx,ty] applied to its content space
+  // (origin = bottom-left of the untrimmed frame, y-up)
+  drawFrameM(key, name, m, color) {
+    const fr = this.frame(key, name); if (!fr) return false;
+    const { s, f } = fr;
+    const [fx, fy, fw, fh, ox, oy, sw, sh, rot] = f;
+    const lx0 = ox, lx1 = ox + fw, ly1 = sh - oy, ly0 = ly1 - fh;
+    const P = (x, y) => [m[0] * x + m[2] * y + m[4], m[1] * x + m[3] * y + m[5]];
+    const pts = [P(lx0, ly0), P(lx1, ly0), P(lx1, ly1), P(lx0, ly1)];
+    const W = s.W, H = s.H, e = 0.5;
+    let uvs;
+    if (!rot) { const u = (fx + e) / W, v = (fy + e) / H, u2 = (fx + fw - e) / W, v2 = (fy + fh - e) / H; uvs = [u, v2, u2, v2, u2, v, u, v]; }
+    else { const u = (fx + e) / W, v = (fy + e) / H, u2 = (fx + fh - e) / W, v2 = (fy + fw - e) / H; uvs = [u, v, u, v2, u2, v2, u2, v]; }
+    this._quad4(s.tex, pts, uvs, color);
+    return true;
+  }
+  _quad4(tex, pts, uvs, color) {
+    const q = this.quad; const c = color || C; let i = 0;
+    for (let k = 0; k < 4; k++) {
+      q[i++] = pts[k][0]; q[i++] = pts[k][1]; q[i++] = c.r; q[i++] = c.g; q[i++] = c.b; q[i++] = c.a;
+      q[i++] = uvs[k * 2]; q[i++] = uvs[k * 2 + 1]; q[i++] = 0; q[i++] = 0; q[i++] = 0; q[i++] = 0;
+    }
+    this.r.enableRenderer(this.r.batcher);
+    this.r.batcher.draw(tex, q, this.r.QUAD_TRIANGLES);
+  }
+  setAdditive(on) {
+    const gl = this.gl;
+    this.r.enableRenderer(this.r.batcher);
+    this.r.batcher.setBlendMode(gl.SRC_ALPHA, on ? gl.ONE : gl.ONE_MINUS_SRC_ALPHA);
+  }
   // draw a whole texture. (x,y) = anchor pos
   drawTex(tex, x, y, o = {}) {
     if (!tex) return;
