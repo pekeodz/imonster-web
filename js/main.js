@@ -4,6 +4,7 @@ import { Lua } from './engine/lua.js';
 import { Gfx } from './engine/gfx.js';
 import { Audio2 } from './engine/audio.js';
 import { initSpineKit, buildPlayerSkeleton, SpineActor } from './engine/spinekit.js';
+SpineActor.sound = n => Audio2.play(n, 0.7);
 import { UI } from './ui/ui.js';
 import './ui/panels.js';
 import { Tower } from './game/tower.js';
@@ -14,6 +15,7 @@ import { installSkillLua, skillHost, heroPassives, applyAttrEffects, applyHeroSp
 import { Modes, lookEquips, LAB_START } from './game/modes.js';
 import { Daily } from './game/daily.js';
 import { loadGemTable } from './game/craft.js';
+import { Preload } from './engine/preload.js';
 const { P, save, newProfile, loadBest, fullHeal } = Profile;
 
 const VW = 750, VH = 1334;
@@ -78,13 +80,14 @@ class Game {
       if (P.data) await setLang(P.data.settings.lang || 'en');
       invalidatePassives();
       Audio2.init(P.data?.settings);
-      this.ui.progress(0.95, 'Chuẩn bị...');
-      await Promise.all([this.gfx.loadSheet('ui/uip-3'), this.gfx.loadTex('ui/towermasker-1'), this.gfx.loadTex('scene/camp')]);
+      this.ui.progress(0.82, 'Đang tải hình ảnh, hiệu ứng và âm thanh...');
+      await Preload.essentials(this.gfx, k => this.ui.progress(0.82 + k * 0.17, `Đang tải hình ảnh, hiệu ứng và âm thanh... ${Math.round(k * 100)}%`));
       this.ui.progress(1, 'Xong!');
     } catch (e) {
       console.error(e); this.ui.progress(1, 'Lỗi tải: ' + e.message); return;
     }
     this.title();
+    Preload.background(this.gfx);
   }
   heroStatHook(s) {
     const p = P.data; if (!p) return s;
@@ -179,6 +182,7 @@ class Game {
     try { await t.enter(mapId); }
     catch (e) { console.error(e); this.ui.toast('Lỗi tạo tầng: ' + e.message); return this.toCamp(true); }
     this.tower = t; this.scene = 'tower'; this.previewActor = null;
+    Preload.next(this.gfx, t.floor);
     this.ui.hud(t);
     story('entered tower', { map_id: +mapId, last_id: lastId });
   }

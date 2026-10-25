@@ -34,6 +34,12 @@ dựng lại từ chính file APK 1.4.1: **toàn bộ hình ảnh, nhạc, dữ 
 - **Quầy đổi trang bị** và **quầy sự kiện** (shop.csv storage 4 và 5), đổi bằng Mảnh Thánh, Ngọc Thợ Cung, vàng…
 - **Cờ đánh dấu** (pháo hiệu đỏ/vàng/xanh/lục): cắm trên sàn, hiện trên bản đồ nhỏ.
 
+### Bản 4 (sửa lỗi + đồ hoạ)
+- Nền trời và lớp ánh sáng theo từng khu như bản gốc (cảnh `tower/bg-N` và `tower/masker-N`): tầng 1 có trời xanh mây trôi và sương trắng, tầng sâu có sương màu và bóng tối quanh nhân vật; vùng chưa khám phá để lộ nền trời thay vì màu đen.
+- Tải trước toàn bộ hình, khung xương, hiệu ứng và âm thanh cần cho các tầng sắp chơi ngay ở màn hình tải; phần còn lại tải ngầm.
+- Âm thanh đánh/trúng đòn và tiếng bước chân lấy theo sự kiện trong hoạt ảnh gốc nên khớp đúng khung hình.
+- Sửa hướng mặt nhân vật/thú cưng khi di chuyển và khi đánh, giật hình khi đổi hướng, giật khi bấm lại lúc đang đi, kiểu dáng 9 bị sai màu da, đóng túi đồ ở trại bị chuyển sang giao diện tháp.
+
 Nội dung chữ trong game là của bản gốc (Anh / 中文 / 日本語 / 한국어 – đổi trong Cài đặt); bản gốc không có tiếng Việt. Kỹ năng thú cưng và chế độ Khó trong bản gốc nằm ở phần C++/máy chủ nên công thức ở đây là phỏng theo mô tả.
 
 ## Chạy thử trên máy

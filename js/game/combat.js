@@ -170,8 +170,9 @@ export class Combat {
       if (tgt.isHero && heroPassives().specials[300000]) { }
       return 0;
     }
-    if (src.isHero) Audio2.play(crit ? 'crithit-' + (1 + (Math.random() * 3 | 0)) : 'hit-1-' + (1 + (Math.random() * 13 | 0)), 0.6);
-    else Audio2.play('hit-2-' + (1 + (Math.random() * 4 | 0)), 0.5);
+    // the swing animation already played its own impact sound (spine "sound-1" events); keep the crit sting
+    if (src.isHero) { if (crit) Audio2.play('crithit-' + (1 + (Math.random() * 3 | 0)), 0.6); else if (!opts.silent) Audio2.play('hit-1-' + (1 + (Math.random() * 13 | 0)), 0.6); }
+    else if (!opts.silent) Audio2.play('hit-2-' + (1 + (Math.random() * 4 | 0)), 0.5);
     // Fighting Instinct: chance to kill instantly after crit
     if (src.isHero && crit && heroPassives().specials[107102] && tgt.rank < 4) {
       const p = (+heroPassives().specials[107102].p1 || 0) * (tgt.rank === 2 ? 0.67 : tgt.rank === 3 ? 0.34 : 1);

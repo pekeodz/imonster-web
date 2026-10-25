@@ -112,6 +112,7 @@ export class UI {
 
   // ------------------------------------------------ tower HUD
   hud(t) {
+    if (!t || this.g.scene !== 'tower') return; // camp has its own screen (closing the bag in camp must not build the tower HUD)
     const p = P.data; const s = stats();
     if (!this.hudEl) {
       this.clearScreen();

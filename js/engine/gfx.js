@@ -37,16 +37,20 @@ export class Gfx {
   worldToScreen(wx, wy) {
     return { x: ((wx - this.cx) / this.viewW + 0.5) * this.cssW, y: (0.5 - (wy - this.cy) / this.viewH) * this.cssH };
   }
-  async loadSheet(key) { // key like 'map/tile-1'
-    if (this.sheets[key]) return this.sheets[key];
-    const info = DB.frames[key]; if (!info) throw new Error('no sheet ' + key);
-    const tex = await loadGLTexture('assets/img/' + info.page + '.webp');
-    const img = tex.getImage();
-    return (this.sheets[key] = { tex, W: img.width, H: img.height, frames: info.frames });
+  loadSheet(key) { // key like 'map/tile-1' (in-flight loads are shared)
+    if (this.sheets[key]) return Promise.resolve(this.sheets[key]);
+    this._sp ||= {};
+    return this._sp[key] ||= (async () => {
+      const info = DB.frames[key]; if (!info) throw new Error('no sheet ' + key);
+      const tex = await loadGLTexture('assets/img/' + info.page + '.webp');
+      const img = tex.getImage();
+      return (this.sheets[key] = { tex, W: img.width, H: img.height, frames: info.frames });
+    })().catch(e => { delete this._sp[key]; throw e; });
   }
-  async loadTex(path) { // 'map/floor'
-    if (!this.textures[path]) this.textures[path] = await loadGLTexture('assets/img/' + path + '.webp');
-    return this.textures[path];
+  loadTex(path) { // 'map/floor'
+    if (this.textures[path]) return Promise.resolve(this.textures[path]);
+    this._tp ||= {};
+    return this._tp[path] ||= loadGLTexture('assets/img/' + path + '.webp').then(t => (this.textures[path] = t)).catch(e => { delete this._tp[path]; throw e; });
   }
   tex(path) { return this.textures[path]; }
   frame(key, name) {
@@ -126,6 +130,11 @@ export class Gfx {
     }
     this.r.enableRenderer(this.r.batcher);
     this.r.batcher.draw(tex, q, this.r.QUAD_TRIANGLES);
+  }
+  drawTexM(tex, m, color) {
+    const img = tex.getImage(), w = img.width, h = img.height;
+    const P = (x, y) => [m[0] * x + m[2] * y + m[4], m[1] * x + m[3] * y + m[5]];
+    this._quad4(tex, [P(0, 0), P(w, 0), P(w, h), P(0, h)], [0, 1, 1, 1, 1, 0, 0, 0], color);
   }
   setAdditive(on) {
     const gl = this.gl;

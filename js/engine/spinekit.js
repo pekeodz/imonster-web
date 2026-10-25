@@ -118,7 +118,7 @@ export async function buildPlayerSkeleton(look, equips) {
   const data = await loadPlayerData();
   const tone = look?.tone ?? 1, style = look?.style ?? 2;
   const baseModel = String(tone * 10 + 1).padStart(3, '0');
-  const styleModel = String(tone * 10 + style).padStart(3, '0');
+  const styleModel = String(tone * 10 + (style % 10)).padStart(3, '0'); // style 10 = set x0 of the same tone
   const skin = new spine.Skin('doll');
   const def = data.__origDefault;
   // map slot name -> {attName: imageName}
@@ -184,9 +184,31 @@ export class SpineActor {
     this.state.data.defaultMix = 0.1;
     this.names = new Set(skeleton.data.animations.map(a => a.name));
     this.cur = null;
+    // original animation events: "sound-1"/"sound-2" (random pick from a list, "0" = silence), "hit"/"fire" = impact frame
+    this.state.addListener({ event: (entry, ev) => {
+      const n = ev.data.name;
+      if (n === 'sound-1' || n === 'sound-2') {
+        const an = entry.animation?.name || '';
+        if (an.startsWith('stand')) { const now = performance.now(); if (now - (this._fun || 0) < 12000 || Math.random() < 0.5) return; this._fun = now; } // idle voices: occasional
+        const list = String(ev.stringValue || ev.data.stringValue || '').split(/[,;]/).filter(Boolean);
+        const pick = list[Math.floor(Math.random() * list.length)];
+        if (pick && pick !== '0' && SpineActor.sound && !this.mute) SpineActor.sound(pick);
+      } else if ((n === 'hit' || n === 'fire') && entry.onHit) entry.onHit(n);
+    } });
+  }
+  // time of the first impact event of an animation (seconds), or null
+  hitTime(name) {
+    const a = this.skeleton.data.findAnimation(name); if (!a) return null;
+    for (const tl of a.timelines) if (tl instanceof spine.EventTimeline) for (const e of tl.events) if (e.data.name === 'hit' || e.data.name === 'fire') return e.time;
+    return null;
+  }
+  hasSoundEvents(name) {
+    const a = this.skeleton.data.findAnimation(name); if (!a) return false;
+    for (const tl of a.timelines) if (tl instanceof spine.EventTimeline) for (const e of tl.events) if (e.data.name.startsWith('sound')) return true;
+    return false;
   }
   has(n) { return this.names.has(n); }
-  play(name, loop = true, onEnd) {
+  play(name, loop = true, onEnd, onHit) {
     if (!this.has(name)) {
       // fallbacks
       const base = name.replace(/-\d$/, '');
@@ -198,6 +220,7 @@ export class SpineActor {
     this.cur = name;
     const e = this.state.setAnimation(0, name, loop);
     if (onEnd) e.listener = { complete: () => { e.listener = null; onEnd(); } };
+    if (onHit) e.onHit = onHit;
     return e;
   }
   duration(name) { const a = this.skeleton.data.findAnimation(name); return a ? a.duration : 0; }

@@ -12,7 +12,7 @@ import { Combat, AFFIX_NAMES } from './combat.js';
 import { story } from './story.js';
 import { heroPassives, buffMods, adventureSkill, invalidatePassives } from './skills.js';
 import { Traps } from './traps.js';
-import { Ornaments, loadOrna } from './ornaments.js';
+import { Ornaments, loadOrna, loadTowerFx, towerFx, drawCCB, ccbAssets } from './ornaments.js';
 import { pickDiary } from './diary.js';
 import { PetRuntime, activePet } from './pets.js';
 import { Modes, lookEquips } from './modes.js';
@@ -74,6 +74,11 @@ export class Tower {
     this.orna = new Ornaments(this);
     try { await loadOrna(); this.orna.build(); } catch (e) { console.warn('ornaments', e); }
     const on = this.orna.sheets();
+    // per-tileset sky/background and lighting layer from the original tower/bg-N and tower/masker-N scenes
+    try { await loadTowerFx(); } catch (e) { }
+    this.bgFx = towerFx('bg-' + this.tileset); this.maskFx = towerFx('masker-' + this.tileset);
+    this.fxEm = { bg: new Map(), mask: new Map() };
+    for (const d of [this.bgFx, this.maskFx]) if (d) { const a = ccbAssets(d); on.sheets.push(...a.sheets.filter(k => DB.frames[k])); on.tex.push(...a.tex); }
     const ap = activePet();
     if (ap) this.pet = new PetRuntime(this, ap.id, ap);
     // assets
@@ -287,13 +292,14 @@ export class Tower {
     const sk = await buildPlayerSkeleton(P.data.look, lookEquips(P.data));
     const [x, y] = this.born;
     this.hero = { isHero: true, x, y, wx: x * T + 50, wy: -(y * T + 50) - 20, actor: new SpineActor(sk), dir: 2, flip: false, path: null, alive: true, alpha: 1 };
+    this.hero.actor.state.data.defaultMix = 0;
     this.units.push(this.hero);
     this.heroIdle();
   }
   async refreshHeroLook() {
     if (!this.hero) return;
     const sk = await buildPlayerSkeleton(P.data.look, lookEquips(P.data));
-    this.hero.actor = new SpineActor(sk); this.heroIdle(true);
+    this.hero.actor = new SpineActor(sk); this.hero.actor.state.data.defaultMix = 0; this.heroIdle(true);
   }
   heroIdle(force) {
     const h = this.hero; const st = weaponStance(P.data);
@@ -373,6 +379,16 @@ export class Tower {
 
   goTo(tx, ty, intent) {
     const h = this.hero;
+    // tapping again while walking: keep going into the tile we are already stepping into, then re-path from there
+    const step = h.path && h.path.length && !this.fight ? h.path[0] : null;
+    if (step && (Math.abs(h.wx - (h.x * T + 50)) > 2 || Math.abs(h.wy - (-(h.y * T + 50) - 20)) > 2)) {
+      const ox = h.x, oy = h.y; h.x = step[0]; h.y = step[1];
+      h.path = null; this.goTo(tx, ty, intent);
+      const rest = h.path; h.x = ox; h.y = oy;
+      h.path = rest ? [step, ...rest] : [step];
+      if (!rest) h.intent = null;
+      return;
+    }
     let path;
     const adjacentTarget = intent.attack || intent.use;
     if (adjacentTarget) {
@@ -521,17 +537,22 @@ export class Tower {
       h.dir = 3;
       const dur = h.actor.duration(anim) || 0.6;
       const speed = Math.max(1, dur / (iv * 0.9));
-      h.actor.cur = null;
-      const e = h.actor.play(anim, false, () => { if (h.alive && this.fight) this.heroIdle(true); });
-      if (e) e.timeScale = speed;
-      const hitAt = Math.min(dur / speed * 0.5, iv * 0.6);
-      C.wait(hitAt).then(() => {
+      const silent = h.actor.hasSoundEvents(anim);
+      // damage lands on the animation's own "hit" event (fallback timer if it has none)
+      let landed = false;
+      const land = () => {
+        if (landed) return; landed = true;
         if (this.fight?.mon !== m) return;
-        C.normalAttack(h, m);
+        C.normalAttack(h, m, { silent });
         const dbl = heroPassives().double;
         if (dbl && m.alive && Math.random() * 100 < dbl) C.wait(0.18).then(() => { if (this.fight?.mon === m) C.normalAttack(h, m, { dy: 40 }); });
         this.ui.hud(this);
-      });
+      };
+      h.actor.cur = null;
+      const e = h.actor.play(anim, false, () => { if (h.alive && this.fight) this.heroIdle(true); }, land);
+      if (e) e.timeScale = speed;
+      const ht = h.actor.hitTime(anim);
+      C.wait(ht != null ? ht / speed + 0.12 : Math.min(dur / speed * 0.5, iv * 0.6)).then(land);
     }
     if (f.monT <= 0 && m.alive && h.alive) {
       const ms = C.stats(m);
@@ -541,13 +562,21 @@ export class Tower {
       if (!usedSkill) {
         const dur = m.actor?.duration('attack-1-3') || 0.6;
         const speed = Math.max(1, dur / (iv * 0.9));
+        const times = Math.max(1, m.st.atk_times || 1);
+        const silent = !!m.actor?.hasSoundEvents('attack-1-3');
+        let hits = 0;
+        const land = () => {
+          if (hits >= times) return; const i = hits++;
+          if (this.fight?.mon === m) { C.normalAttack(m, h, { dy: i * 30, silent }); this.ui.hud(this); }
+        };
         if (m.actor) {
           m.actor.cur = null;
-          const e = m.actor.play('attack-1-3', false, () => this.idleUnit(m));
+          const e = m.actor.play('attack-1-3', false, () => this.idleUnit(m), land);
           if (e) e.timeScale = speed;
         }
-        const times = Math.max(1, m.st.atk_times || 1);
-        for (let i = 0; i < times; i++) C.wait(Math.min(dur / speed * 0.5, iv * 0.6) + i * 0.15).then(() => { if (this.fight?.mon === m) { C.normalAttack(m, h, { dy: i * 30 }); this.ui.hud(this); } });
+        const ht = m.actor?.hitTime('attack-1-3');
+        const t0 = ht != null ? ht / speed + 0.12 : Math.min(dur / speed * 0.5, iv * 0.6);
+        for (let i = 0; i < times; i++) C.wait(t0 + i * 0.15).then(() => { if (hits <= i) land(); });
       } else if (m.actor && !m.actor.cur?.startsWith('skill')) {
         const sk = ['skill-1-3', 'skill-2-3', 'attack-1-3'].find(n => m.actor.has(n));
         if (sk) { m.actor.cur = null; m.actor.play(sk, false, () => this.idleUnit(m)); }
@@ -697,6 +726,7 @@ export class Tower {
     this.combat.update(dt);
     if (this.potCD) { this.potCD.red = Math.max(0, this.potCD.red - dt); this.potCD.blue = Math.max(0, this.potCD.blue - dt); }
     // hero movement
+    if (!h.path || !h.path.length) h.carry = 0;
     if (h.path && h.path.length && h.alive) {
       const [nx, ny] = h.path[0];
       // a monster stepped into the way?
@@ -708,11 +738,12 @@ export class Tower {
       } else {
         const tx = nx * T + 50, ty = -(ny * T + 50) - 20;
         const dx = tx - h.wx, dy = ty - h.wy; const d = Math.hypot(dx, dy);
-        const sp = 320 * dt;
+        const sp = 330 * dt + (h.carry || 0); h.carry = 0;
         if (nx !== h.x) { h.dir = 3; h.flip = nx < h.x; } else h.dir = ny < h.y ? 1 : 2;
         h.actor.play('run-1-' + h.dir, true);
         if (d <= sp) {
           h.wx = tx; h.wy = ty; h.x = nx; h.y = ny; h.path.shift();
+          h.carry = Math.min(sp - d, 40);
           this.reveal(h.x, h.y);
           if (this.pass && !this.nearPassFired && Math.abs(h.x - this.pass[0]) + Math.abs(h.y - this.pass[1]) <= 2) { this.nearPassFired = true; story('near pass', {}); }
           // ambush: an aware monster adjacent starts a fight
@@ -747,6 +778,12 @@ export class Tower {
     const viewW = this.g.viewW, viewH = this.g.viewH;
     gfx.setView(Math.round(this.camX), Math.round(this.camY), viewW, viewH);
     gfx.begin([0.02, 0.02, 0.03]);
+    const vx0 = this.camX - viewW / 2, vx1 = this.camX + viewW / 2, vy0 = this.camY - viewH / 2, vy1 = this.camY + viewH / 2;
+    if (this.bgFx) { // sky behind the tower (screen space, slowly drifting)
+      const s = this.bgFx.seq.normal || Object.values(this.bgFx.seq)[0];
+      const k = Math.max(viewW / 750, viewH / 1334);
+      drawCCB(gfx, this.bgFx, { sid: s[0], t: s[1] > 0 ? this.time % s[1] : 0, root: [k, 0, 0, k, this.camX, this.camY], em: this.fxEm.bg, now: this.time });
+    }
     const x0 = Math.max(0, Math.floor((this.camX - viewW / 2) / T) - 1), x1 = Math.min(g.w - 1, Math.ceil((this.camX + viewW / 2) / T) + 1);
     const y0 = Math.max(0, Math.floor((-this.camY - viewH / 2) / T) - 1), y1 = Math.min(g.h - 1, Math.ceil((-this.camY + viewH / 2) / T) + 2);
     const sheet = 'map/tile-' + this.tileset, pre = this.tileset + '-';
@@ -792,15 +829,12 @@ export class Tower {
       gfx.drawTex(gfx.tex('ui/effect-1-2-6'), f.x, f.y, { scale: 0.3 + k * 0.7, color: c });
       gfx.drawTex(gfx.tex('ui/effect-1-4-1'), f.x, f.y, { scale: 1.5 + k, color: rgba(1, 1, 1, 1 - k) });
     }
-    // fog: black over unrevealed
-    const black = rgba(0, 0, 0, 1);
-    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
-      if (this.revealed[this.idx(x, y)] || this.wallVisible(x, y)) continue;
-      gfx.drawRect(x * T - 1, -(y + 1) * T - 1, T + 2, T + 2, black);
+    // unexplored tiles are simply not drawn: the background shows through, like the original
+    // lighting layer around the hero (mist on the first floors, dark vignette + coloured glow deeper in the tower)
+    if (this.maskFx) {
+      const s = this.maskFx.seq.normal || Object.values(this.maskFx.seq)[0];
+      drawCCB(gfx, this.maskFx, { sid: s[0], t: s[1] > 0 ? this.time % s[1] : 0, root: [1, 0, 0, 1, this.hero.wx, this.hero.wy + 40], em: this.fxEm.mask, now: this.time, cover: { x0: vx0 - 10, x1: vx1 + 10, y0: vy0 - 10, y1: vy1 + 10 } });
     }
-    // soft vignette
-    const vm = gfx.tex('ui/towermasker-1');
-    if (vm) gfx.drawTex(vm, this.hero.wx, this.hero.wy + 30, { w: 2400, h: 2400, color: rgba(0, 0, 0, 0.55) });
     gfx.end();
   }
   wallVisible(x, y) {
@@ -846,7 +880,7 @@ export class Tower {
     const sk = u.actor.skeleton;
     sk.x = u.wx; sk.y = u.wy;
     const base = u.baseScale || 1;
-    sk.scaleX = (u.flip ? -1 : 1) * base * (u.isHero ? 1 : 1); sk.scaleY = base;
+    sk.scaleX = (u.flip ? 1 : -1) * base; sk.scaleY = base; // all spine art (hero, pets, monsters) faces left by default
     if (!u.isHero && !u.isPet) sk.scaleX = (u.flip ? 1 : -1) * base; // monsters art faces left by default
     if (u.isPet) { sk.scaleX = (u.flip ? 1 : -1) * base; const c0 = sk.color; c0.set(1, 1, 1, 1); sk.updateWorldTransform(); this.gfx.drawSkeleton(sk); return; }
     const c = sk.color;

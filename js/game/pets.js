@@ -132,8 +132,8 @@ export class PetRuntime {
       const data = await loadSkeletonData('npc/' + petModel(this.id, this.pd.star));
       const sk = new spine.Skeleton(data); sk.scaleX = sk.scaleY = 0.8;
       this.unit.actor = new SpineActor(sk); this.unit.baseScale = 0.8;
-      const st = [...this.unit.actor.names].find(n => n.startsWith('stand')) || [...this.unit.actor.names][0];
-      this.unit.actor.play(st, true);
+      this.unit.actor.state.data.defaultMix = 0;
+      this.unit.actor.play('stand-1-3', true);
     } catch (e) { console.warn('pet model', e); }
   }
   // follow the hero (one tile behind)
@@ -141,8 +141,17 @@ export class PetRuntime {
     const u = this.unit;
     const tx = h.wx + (h.flip ? 70 : -70), ty = h.wy + 15;
     const dx = tx - u.wx, dy = ty - u.wy, d = Math.hypot(dx, dy);
+    const a = u.actor, busy = a && a.cur && a.cur.startsWith('attack');
     if (d > 600) { u.wx = tx; u.wy = ty; }
-    else if (d > 4) { const sp = Math.min(d, 380 * dt); u.wx += dx / d * sp; u.wy += dy / d * sp; u.flip = dx < -2 ? true : dx > 2 ? false : u.flip; }
+    else if (d > 6) {
+      const sp = Math.min(d, 380 * dt); u.wx += dx / d * sp; u.wy += dy / d * sp;
+      if (Math.abs(dx) > Math.abs(dy) * 0.6) { u.flip = dx < 0; if (a && !busy) a.play('run-1-3', true); }
+      else if (a && !busy) a.play(dy > 0 ? 'run-1-1' : 'run-1-2', true);
+    } else if (a && !busy) {
+      const m = this.t.fight?.mon;
+      if (m) u.flip = m.wx < u.wx; else u.flip = h.flip;
+      a.play('stand-1-3', true);
+    }
     u.x = h.x; u.y = h.y;
   }
   fightStart(m) {
@@ -165,7 +174,7 @@ export class PetRuntime {
     for (const k in T) T[k] -= dt;
     if (T.atk <= 0) {
       T.atk = 2.0;
-      const a = this.unit.actor; if (a) { a.cur = null; const an = ['attack-1-3', 'skill-1-3'].find(n => a.has(n)); if (an) a.play(an, false, () => { a.cur = null; a.play([...a.names].find(n => n.startsWith('stand')), true); }); }
+      const a = this.unit.actor; if (a) { a.cur = null; this.unit.flip = m.wx < this.unit.wx; const an = ['attack-1-3', 'skill-1-3'].find(n => a.has(n)); if (an) a.play(an, false, () => { a.cur = null; a.play('stand-1-3', true); }); }
       C.wait(0.3).then(() => { if (this.t.fight?.mon === m) C.normalAttack(this.unit, m); });
     }
     if (this.has(300010) && T.s10 <= 0) { T.s10 = 2; this.hit(m, 3, this.v(300010)); }
