@@ -1,0 +1,160 @@
+
+gargoyle.webp
+size: 368,170
+format: RGBA8888
+filter: Linear,Linear
+repeat: none
+0095_Gargoyle_1_Useful/Arm_1_1
+  rotate: false
+  xy: 313, 8
+  size: 13, 30
+  orig: 13, 30
+  offset: 0, 0
+  index: -1
+0095_Gargoyle_1_Useful/Body_1_1
+  rotate: false
+  xy: 225, 14
+  size: 33, 59
+  orig: 33, 59
+  offset: 0, 0
+  index: -1
+0095_Gargoyle_1_Useful/Color_1_1
+  rotate: false
+  xy: 87, 7
+  size: 54, 68
+  orig: 54, 68
+  offset: 0, 0
+  index: -1
+0095_Gargoyle_1_Useful/Color_1_2
+  rotate: false
+  xy: 288, 2
+  size: 23, 28
+  orig: 23, 28
+  offset: 0, 0
+  index: -1
+0095_Gargoyle_1_Useful/Color_2_1
+  rotate: false
+  xy: 143, 8
+  size: 54, 67
+  orig: 54, 67
+  offset: 0, 0
+  index: -1
+0095_Gargoyle_1_Useful/Color_2_2
+  rotate: false
+  xy: 344, 64
+  size: 22, 27
+  orig: 22, 27
+  offset: 0, 0
+  index: -1
+0095_Gargoyle_1_Useful/Foot_1_1
+  rotate: false
+  xy: 303, 48
+  size: 10, 14
+  orig: 10, 14
+  offset: 0, 0
+  index: -1
+0095_Gargoyle_1_Useful/Hand_1_1
+  rotate: false
+  xy: 286, 64
+  size: 27, 27
+  orig: 27, 27
+  offset: 0, 0
+  index: -1
+0095_Gargoyle_1_Useful/Hand_1_2
+  rotate: false
+  xy: 199, 2
+  size: 12, 15
+  orig: 12, 15
+  offset: 0, 0
+  index: -1
+0095_Gargoyle_1_Useful/Hand_2_1
+  rotate: false
+  xy: 260, 2
+  size: 26, 28
+  orig: 26, 28
+  offset: 0, 0
+  index: -1
+0095_Gargoyle_1_Useful/Hand_2_2
+  rotate: false
+  xy: 344, 40
+  size: 18, 22
+  orig: 18, 22
+  offset: 0, 0
+  index: -1
+0095_Gargoyle_1_Useful/Head_1_1
+  rotate: false
+  xy: 260, 32
+  size: 21, 41
+  orig: 21, 41
+  offset: 0, 0
+  index: -1
+0095_Gargoyle_1_Useful/Head_2_1
+  rotate: false
+  xy: 199, 19
+  size: 24, 62
+  orig: 24, 62
+  offset: 0, 0
+  index: -1
+0095_Gargoyle_1_Useful/Leg_1_1
+  rotate: false
+  xy: 315, 53
+  size: 27, 38
+  orig: 27, 38
+  offset: 0, 0
+  index: -1
+0095_Gargoyle_1_Useful/Leg_2_1
+  rotate: false
+  xy: 283, 32
+  size: 18, 30
+  orig: 18, 30
+  offset: 0, 0
+  index: -1
+0095_Gargoyle_1_Useful/Tail_1_1
+  rotate: false
+  xy: 286, 93
+  size: 76, 19
+  orig: 76, 19
+  offset: 0, 0
+  index: -1
+0095_Gargoyle_1_Useful/Wing_1_1
+  rotate: false
+  xy: 231, 75
+  size: 53, 93
+  orig: 53, 93
+  offset: 0, 0
+  index: -1
+0095_Gargoyle_1_Useful/Wing_1_2
+  rotate: false
+  xy: 286, 114
+  size: 78, 54
+  orig: 78, 54
+  offset: 0, 0
+  index: -1
+0095_Gargoyle_1_Useful/Wing_1_3
+  rotate: false
+  xy: 165, 83
+  size: 64, 85
+  orig: 64, 85
+  offset: 0, 0
+  index: -1
+0095_Gargoyle_1_Useful/Wing_2_1
+  rotate: false
+  xy: 2, 57
+  size: 83, 111
+  orig: 83, 111
+  offset: 0, 0
+  index: -1
+0095_Gargoyle_1_Useful/Wing_2_2
+  rotate: false
+  xy: 2, 7
+  size: 82, 48
+  orig: 82, 48
+  offset: 0, 0
+  index: -1
+0095_Gargoyle_1_Useful/Wing_2_3
+  rotate: false
+  xy: 87, 77
+  size: 76, 91
+  orig: 76, 91
+  offset: 0, 0
+  index: -1

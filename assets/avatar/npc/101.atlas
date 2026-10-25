@@ -1,0 +1,244 @@
+
+101.webp
+size: 440,142
+format: RGBA8888
+filter: Linear,Linear
+repeat: none
+Fallen_1_Useful/Arm_2_1
+  rotate: false
+  xy: 390, 58
+  size: 32, 29
+  orig: 32, 29
+  offset: 0, 0
+  index: -1
+Fallen_1_Useful/Arm_2_2
+  rotate: false
+  xy: 272, 3
+  size: 30, 25
+  orig: 30, 25
+  offset: 0, 0
+  index: -1
+Fallen_1_Useful/Butt_1_1
+  rotate: false
+  xy: 344, 60
+  size: 44, 27
+  orig: 44, 27
+  offset: 0, 0
+  index: -1
+Fallen_1_Useful/Butt_1_2
+  rotate: false
+  xy: 204, 2
+  size: 37, 20
+  orig: 37, 20
+  offset: 0, 0
+  index: -1
+Fallen_1_Useful/Head_1_1
+  rotate: true
+  xy: 270, 74
+  size: 27, 72
+  orig: 27, 72
+  offset: 0, 0
+  index: -1
+Fallen_1_Useful/Head_1_2
+  rotate: true
+  xy: 212, 62
+  size: 20, 54
+  orig: 20, 54
+  offset: 0, 0
+  index: -1
+Fallen_1_Useful/Object_1_1
+  rotate: true
+  xy: 332, 5
+  size: 15, 17
+  orig: 15, 17
+  offset: 0, 0
+  index: -1
+Fallen_1_Useful_Red/Arm_1_1
+  rotate: true
+  xy: 420, 93
+  size: 29, 15
+  orig: 29, 15
+  offset: 0, 0
+  index: -1
+Fallen_1_Useful_Red/Arm_1_2
+  rotate: true
+  xy: 304, 7
+  size: 13, 26
+  orig: 13, 26
+  offset: 0, 0
+  index: -1
+Fallen_1_Useful_Red/Body_1_1
+  rotate: true
+  xy: 107, 2
+  size: 37, 47
+  orig: 37, 47
+  offset: 0, 0
+  index: -1
+Fallen_1_Useful_Red/Ear_1_1
+  rotate: false
+  xy: 156, 30
+  size: 60, 30
+  orig: 60, 30
+  offset: 0, 0
+  index: -1
+Fallen_1_Useful_Red/Hand_1_1
+  rotate: false
+  xy: 352, 2
+  size: 25, 23
+  orig: 25, 23
+  offset: 0, 0
+  index: -1
+Fallen_1_Useful_Red/Hand_2_1
+  rotate: false
+  xy: 379, 2
+  size: 25, 23
+  orig: 25, 23
+  offset: 0, 0
+  index: -1
+Fallen_1_Useful_Red/Hand_2_2
+  rotate: false
+  xy: 424, 74
+  size: 14, 17
+  orig: 14, 17
+  offset: 0, 0
+  index: -1
+Fallen_1_Useful_Red/Head_1_1
+  rotate: false
+  xy: 212, 84
+  size: 56, 56
+  orig: 56, 56
+  offset: 0, 0
+  index: -1
+Fallen_1_Useful_Red/Leg_1_1
+  rotate: true
+  xy: 381, 31
+  size: 25, 32
+  orig: 25, 32
+  offset: 0, 0
+  index: -1
+Fallen_1_Useful_Red/Leg_1_2
+  rotate: false
+  xy: 352, 27
+  size: 27, 31
+  orig: 27, 31
+  offset: 0, 0
+  index: -1
+Fallen_1_Useful_Red/Leg_2_1
+  rotate: false
+  xy: 406, 2
+  size: 16, 27
+  orig: 16, 27
+  offset: 0, 0
+  index: -1
+Fallen_1_Useful_Red/Leg_2_2
+  rotate: true
+  xy: 243, 6
+  size: 16, 27
+  orig: 16, 27
+  offset: 0, 0
+  index: -1
+Fallen_1_Useful_Red/Skirt_1_1
+  rotate: true
+  xy: 156, 4
+  size: 24, 46
+  orig: 24, 46
+  offset: 0, 0
+  index: -1
+Shadow/Shadow_1_1
+  rotate: false
+  xy: 314, 22
+  size: 36, 36
+  orig: 36, 36
+  offset: 0, 0
+  index: -1
+Weapon_Arrow_1/Arrow_1_1
+  rotate: false
+  xy: 270, 103
+  size: 81, 19
+  orig: 81, 19
+  offset: 0, 0
+  index: -1
+Weapon_Arrow_1/Arrow_1_2
+  rotate: false
+  xy: 270, 103
+  size: 81, 19
+  orig: 81, 19
+  offset: 0, 0
+  index: -1
+Weapon_Bow_1/Bow_1_1
+  rotate: false
+  xy: 2, 7
+  size: 103, 32
+  orig: 103, 32
+  offset: 0, 0
+  index: -1
+Weapon_Bow_1/Bow_1_2
+  rotate: true
+  xy: 2, 2
+  size: 3, 59
+  orig: 3, 59
+  offset: 0, 0
+  index: -1
+Weapon_Bow_1/Bow_1_3
+  rotate: true
+  xy: 353, 89
+  size: 33, 65
+  orig: 33, 65
+  offset: 0, 0
+  index: -1
+Weapon_Shield_2/Shield_2_1
+  rotate: false
+  xy: 149, 62
+  size: 61, 78
+  orig: 61, 78
+  offset: 0, 0
+  index: -1
+Weapon_Staff_2/Staff_1_1
+  rotate: false
+  xy: 2, 41
+  size: 75, 99
+  orig: 75, 99
+  offset: 0, 0
+  index: -1
+Weapon_Staff_2/Staff_1_2
+  rotate: true
+  xy: 268, 60
+  size: 12, 48
+  orig: 12, 48
+  offset: 0, 0
+  index: -1
+Weapon_Staff_2/Staff_2_1
+  rotate: false
+  xy: 79, 41
+  size: 68, 99
+  orig: 68, 99
+  offset: 0, 0
+  index: -1
+Weapon_Staff_2/Staff_2_2
+  rotate: true
+  xy: 363, 124
+  size: 16, 67
+  orig: 16, 67
+  offset: 0, 0
+  index: -1
+Weapon_Staff_2/Staff_2_3
+  rotate: true
+  xy: 218, 24
+  size: 36, 45
+  orig: 36, 45
+  offset: 0, 0
+  index: -1
+Weapon_Staff_2/Staff_2_4
+  rotate: true
+  xy: 265, 30
+  size: 28, 47
+  orig: 28, 47
+  offset: 0, 0
+  index: -1
+Weapon_Staff_2/Staff_2_5
+  rotate: true
+  xy: 270, 124
+  size: 16, 91
+  orig: 16, 91
+  offset: 0, 0
+  index: -1

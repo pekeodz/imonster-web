@@ -1,0 +1,146 @@
+
+10551.webp
+size: 802,274
+format: RGBA8888
+filter: Linear,Linear
+repeat: none
+001
+  rotate: false
+  xy: 723, 72
+  size: 43, 43
+  orig: 43, 43
+  offset: 0, 0
+  index: -1
+002
+  rotate: false
+  xy: 723, 27
+  size: 43, 43
+  orig: 43, 43
+  offset: 0, 0
+  index: -1
+003
+  rotate: true
+  xy: 723, 125
+  size: 37, 26
+  orig: 37, 26
+  offset: 0, 0
+  index: -1
+006
+  rotate: false
+  xy: 768, 13
+  size: 31, 43
+  orig: 31, 43
+  offset: 0, 0
+  index: -1
+008
+  rotate: true
+  xy: 751, 117
+  size: 43, 48
+  orig: 43, 48
+  offset: 0, 0
+  index: -1
+009
+  rotate: false
+  xy: 622, 63
+  size: 99, 99
+  orig: 99, 99
+  offset: 0, 0
+  index: -1
+01
+  rotate: true
+  xy: 202, 8
+  size: 62, 147
+  orig: 62, 147
+  offset: 0, 0
+  index: -1
+010
+  rotate: true
+  xy: 608, 164
+  size: 108, 142
+  orig: 108, 142
+  offset: 0, 0
+  index: -1
+011
+  rotate: true
+  xy: 351, 2
+  size: 68, 85
+  orig: 68, 85
+  offset: 0, 0
+  index: -1
+012
+  rotate: false
+  xy: 508, 8
+  size: 62, 62
+  orig: 62, 62
+  offset: 0, 0
+  index: -1
+013
+  rotate: true
+  xy: 572, 13
+  size: 57, 48
+  orig: 57, 48
+  offset: 0, 0
+  index: -1
+014
+  rotate: false
+  xy: 752, 215
+  size: 48, 57
+  orig: 48, 57
+  offset: 0, 0
+  index: -1
+015
+  rotate: false
+  xy: 768, 58
+  size: 28, 57
+  orig: 28, 57
+  offset: 0, 0
+  index: -1
+016
+  rotate: false
+  xy: 622, 4
+  size: 28, 57
+  orig: 28, 57
+  offset: 0, 0
+  index: -1
+018
+  rotate: true
+  xy: 2, 13
+  size: 57, 198
+  orig: 57, 198
+  offset: 0, 0
+  index: -1
+17
+  rotate: false
+  xy: 752, 162
+  size: 48, 51
+  orig: 48, 51
+  offset: 0, 0
+  index: -1
+Blade-1
+  rotate: false
+  xy: 2, 72
+  size: 200, 200
+  orig: 200, 200
+  offset: 0, 0
+  index: -1
+Blade-2
+  rotate: false
+  xy: 204, 72
+  size: 200, 200
+  orig: 200, 200
+  offset: 0, 0
+  index: -1
+Blade-3
+  rotate: false
+  xy: 406, 72
+  size: 200, 200
+  orig: 200, 200
+  offset: 0, 0
+  index: -1
+Shadow
+  rotate: false
+  xy: 438, 2
+  size: 68, 68
+  orig: 68, 68
+  offset: 0, 0
+  index: -1

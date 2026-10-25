@@ -1,0 +1,153 @@
+
+goblin-1.webp
+size: 379,78
+format: RGBA8888
+filter: Linear,Linear
+repeat: none
+0003_Goblin_1_Useful/Butt_1_1
+  rotate: true
+  xy: 311, 35
+  size: 41, 23
+  orig: 41, 23
+  offset: 0, 0
+  index: -1
+0003_Goblin_1_Useful/Foot_1_2
+  rotate: true
+  xy: 158, 9
+  size: 12, 8
+  orig: 12, 8
+  offset: 0, 0
+  index: -1
+0003_Goblin_1_Useful/Leg_2_2
+  rotate: false
+  xy: 145, 2
+  size: 11, 19
+  orig: 11, 19
+  offset: 0, 0
+  index: -1
+0003_Goblin_1_Useful/Package_1_1
+  rotate: true
+  xy: 72, 19
+  size: 57, 56
+  orig: 57, 56
+  offset: 0, 0
+  index: -1
+0003_Goblin_1_Useful/effect-1-2-2
+  rotate: false
+  xy: 2, 8
+  size: 68, 68
+  orig: 68, 68
+  offset: 0, 0
+  index: -1
+0003_Goblin_1_Useful/icon-6-1-1
+  rotate: false
+  xy: 272, 2
+  size: 29, 28
+  orig: 29, 28
+  offset: 0, 0
+  index: -1
+0004_Goblin_1_Useful_Blue/Arm_2_1
+  rotate: false
+  xy: 168, 2
+  size: 24, 26
+  orig: 24, 26
+  offset: 0, 0
+  index: -1
+0004_Goblin_1_Useful_Blue/Arm_2_2
+  rotate: false
+  xy: 303, 5
+  size: 25, 27
+  orig: 25, 27
+  offset: 0, 0
+  index: -1
+0004_Goblin_1_Useful_Blue/Skirt_1_1
+  rotate: true
+  xy: 240, 2
+  size: 28, 30
+  orig: 28, 30
+  offset: 0, 0
+  index: -1
+0067_Goblin_2_Useful/Arm_1_1
+  rotate: false
+  xy: 354, 3
+  size: 10, 23
+  orig: 10, 23
+  offset: 0, 0
+  index: -1
+0067_Goblin_2_Useful/Arm_1_2
+  rotate: true
+  xy: 116, 5
+  size: 12, 27
+  orig: 12, 27
+  offset: 0, 0
+  index: -1
+0067_Goblin_2_Useful/Body_1_1
+  rotate: false
+  xy: 274, 34
+  size: 35, 42
+  orig: 35, 42
+  offset: 0, 0
+  index: -1
+0067_Goblin_2_Useful/Ear_1_1
+  rotate: false
+  xy: 194, 2
+  size: 44, 28
+  orig: 44, 28
+  offset: 0, 0
+  index: -1
+0067_Goblin_2_Useful/Eye_1_1
+  rotate: true
+  xy: 72, 2
+  size: 15, 23
+  orig: 15, 23
+  offset: 0, 0
+  index: -1
+0067_Goblin_2_Useful/Hand_2_1
+  rotate: true
+  xy: 354, 51
+  size: 25, 23
+  orig: 25, 23
+  offset: 0, 0
+  index: -1
+0067_Goblin_2_Useful/Hand_2_2
+  rotate: true
+  xy: 97, 3
+  size: 14, 17
+  orig: 14, 17
+  offset: 0, 0
+  index: -1
+0067_Goblin_2_Useful/Head_1_1
+  rotate: false
+  xy: 193, 32
+  size: 79, 44
+  orig: 79, 44
+  offset: 0, 0
+  index: -1
+0067_Goblin_2_Useful/Head_1_2
+  rotate: false
+  xy: 159, 30
+  size: 32, 46
+  orig: 32, 46
+  offset: 0, 0
+  index: -1
+0067_Goblin_2_Useful/Head_1_3
+  rotate: false
+  xy: 130, 23
+  size: 27, 53
+  orig: 27, 53
+  offset: 0, 0
+  index: -1
+0067_Goblin_2_Useful/Leg_1_1
+  rotate: false
+  xy: 330, 7
+  size: 22, 26
+  orig: 22, 26
+  offset: 0, 0
+  index: -1
+0067_Goblin_2_Useful/Leg_1_2
+  rotate: true
+  xy: 354, 28
+  size: 21, 23
+  orig: 21, 23
+  offset: 0, 0
+  index: -1

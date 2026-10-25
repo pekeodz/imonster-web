@@ -1,0 +1,181 @@
+
+towernpc-2.webp
+size: 221,142
+format: RGBA8888
+filter: Linear,Linear
+repeat: none
+0017_Shadow/Shadow_1_1
+  rotate: false
+  xy: 82, 50
+  size: 36, 36
+  orig: 36, 36
+  offset: 0, 0
+  index: -1
+0018_Skill_1/Skill_1_2
+  rotate: false
+  xy: 68, 131
+  size: 99, 9
+  orig: 99, 9
+  offset: 0, 0
+  index: -1
+0018_Skill_1/Skill_1_4
+  rotate: false
+  xy: 2, 76
+  size: 64, 64
+  orig: 64, 64
+  offset: 0, 0
+  index: -1
+0074_Murloc_Useful_1/Eye_1_1
+  rotate: false
+  xy: 197, 60
+  size: 10, 21
+  orig: 10, 21
+  offset: 0, 0
+  index: -1
+0074_Murloc_Useful_1/Eye_1_2
+  rotate: false
+  xy: 169, 55
+  size: 26, 26
+  orig: 26, 26
+  offset: 0, 0
+  index: -1
+0074_Murloc_Useful_1/Eye_1_5
+  rotate: false
+  xy: 169, 136
+  size: 3, 4
+  orig: 3, 4
+  offset: 0, 0
+  index: -1
+0074_Murloc_Useful_1/Hair_1_1
+  rotate: false
+  xy: 120, 48
+  size: 26, 38
+  orig: 26, 38
+  offset: 0, 0
+  index: -1
+0074_Murloc_Useful_1/Hair_1_2
+  rotate: false
+  xy: 136, 88
+  size: 36, 41
+  orig: 36, 41
+  offset: 0, 0
+  index: -1
+0074_Murloc_Useful_1/Hair_1_3
+  rotate: false
+  xy: 174, 83
+  size: 27, 57
+  orig: 27, 57
+  offset: 0, 0
+  index: -1
+0074_Murloc_Useful_1/Object_1_1
+  rotate: false
+  xy: 194, 17
+  size: 21, 13
+  orig: 21, 13
+  offset: 0, 0
+  index: -1
+0074_Murloc_Useful_1/Object_1_2
+  rotate: false
+  xy: 125, 20
+  size: 14, 26
+  orig: 14, 26
+  offset: 0, 0
+  index: -1
+0074_Murloc_Useful_1/Object_1_3
+  rotate: false
+  xy: 203, 99
+  size: 16, 41
+  orig: 16, 41
+  offset: 0, 0
+  index: -1
+0074_Murloc_Useful_1/Object_1_4
+  rotate: false
+  xy: 169, 18
+  size: 23, 12
+  orig: 23, 12
+  offset: 0, 0
+  index: -1
+0075_Weapon_Sword_7/Blade_1_1
+  rotate: false
+  xy: 57, 27
+  size: 23, 47
+  orig: 23, 47
+  offset: 0, 0
+  index: -1
+0087_Murloc_Red/Arm_1_1
+  rotate: false
+  xy: 169, 32
+  size: 28, 21
+  orig: 28, 21
+  offset: 0, 0
+  index: -1
+0087_Murloc_Red/Arm_2_1
+  rotate: false
+  xy: 82, 2
+  size: 21, 46
+  orig: 21, 46
+  offset: 0, 0
+  index: -1
+0087_Murloc_Red/Eye_1_3
+  rotate: false
+  xy: 125, 5
+  size: 23, 12
+  orig: 23, 12
+  offset: 0, 0
+  index: -1
+0087_Murloc_Red/Eye_1_6
+  rotate: false
+  xy: 68, 76
+  size: 9, 10
+  orig: 9, 10
+  offset: 0, 0
+  index: -1
+0087_Murloc_Red/Hand_1_1
+  rotate: false
+  xy: 53, 2
+  size: 25, 23
+  orig: 25, 23
+  offset: 0, 0
+  index: -1
+0087_Murloc_Red/Hand_1_2
+  rotate: false
+  xy: 141, 19
+  size: 26, 26
+  orig: 26, 26
+  offset: 0, 0
+  index: -1
+0087_Murloc_Red/Head_1_1
+  rotate: false
+  xy: 68, 88
+  size: 66, 41
+  orig: 66, 41
+  offset: 0, 0
+  index: -1
+0087_Murloc_Red/Head_1_2
+  rotate: false
+  xy: 2, 8
+  size: 49, 18
+  orig: 49, 18
+  offset: 0, 0
+  index: -1
+0087_Murloc_Red/Head_1_3
+  rotate: false
+  xy: 2, 28
+  size: 53, 46
+  orig: 53, 46
+  offset: 0, 0
+  index: -1
+0087_Murloc_Red/Leg_1_1
+  rotate: false
+  xy: 105, 5
+  size: 18, 41
+  orig: 18, 41
+  offset: 0, 0
+  index: -1
+0087_Murloc_Red/Leg_1_2
+  rotate: false
+  xy: 148, 47
+  size: 19, 39
+  orig: 19, 39
+  offset: 0, 0
+  index: -1

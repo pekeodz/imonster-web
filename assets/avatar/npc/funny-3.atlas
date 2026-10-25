@@ -1,0 +1,13 @@
+
+funny-3.webp
+size: 94,94
+format: RGBA8888
+filter: Linear,Linear
+repeat: none
+1
+  rotate: false
+  xy: 2, 2
+  size: 90, 90
+  orig: 90, 90
+  offset: 0, 0
+  index: -1

@@ -1,0 +1,76 @@
+
+funny-2.webp
+size: 263,137
+format: RGBA8888
+filter: Linear,Linear
+repeat: none
+01
+  rotate: false
+  xy: 2, 2
+  size: 27, 27
+  orig: 27, 27
+  offset: 0, 0
+  index: -1
+02
+  rotate: false
+  xy: 2, 31
+  size: 108, 104
+  orig: 108, 104
+  offset: 0, 0
+  index: -1
+03
+  rotate: false
+  xy: 196, 76
+  size: 61, 59
+  orig: 61, 59
+  offset: 0, 0
+  index: -1
+04
+  rotate: false
+  xy: 112, 5
+  size: 49, 35
+  orig: 49, 35
+  offset: 0, 0
+  index: -1
+05
+  rotate: false
+  xy: 64, 17
+  size: 15, 12
+  orig: 15, 12
+  offset: 0, 0
+  index: -1
+06
+  rotate: false
+  xy: 112, 42
+  size: 79, 36
+  orig: 79, 36
+  offset: 0, 0
+  index: -1
+07
+  rotate: false
+  xy: 112, 80
+  size: 82, 55
+  orig: 82, 55
+  offset: 0, 0
+  index: -1
+08
+  rotate: true
+  xy: 163, 9
+  size: 31, 19
+  orig: 31, 19
+  offset: 0, 0
+  index: -1
+09
+  rotate: false
+  xy: 31, 10
+  size: 31, 19
+  orig: 31, 19
+  offset: 0, 0
+  index: -1
+Shadow
+  rotate: false
+  xy: 193, 6
+  size: 68, 68
+  orig: 68, 68
+  offset: 0, 0
+  index: -1

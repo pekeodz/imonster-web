@@ -1,0 +1,153 @@
+
+10522.webp
+size: 249,264
+format: RGBA8888
+filter: Linear,Linear
+repeat: none
+0046_PackDragon_1/Arm_1_1
+  rotate: true
+  xy: 133, 101
+  size: 21, 40
+  orig: 21, 40
+  offset: 0, 0
+  index: -1
+0046_PackDragon_1/Arm_1_2
+  rotate: false
+  xy: 2, 2
+  size: 22, 35
+  orig: 22, 35
+  offset: 0, 0
+  index: -1
+0046_PackDragon_1/Arm_2_1
+  rotate: true
+  xy: 214, 22
+  size: 24, 31
+  orig: 24, 31
+  offset: 0, 0
+  index: -1
+0046_PackDragon_1/Arm_2_2
+  rotate: true
+  xy: 188, 48
+  size: 26, 27
+  orig: 26, 27
+  offset: 0, 0
+  index: -1
+0046_PackDragon_1/Body_1_1
+  rotate: true
+  xy: 2, 172
+  size: 90, 117
+  orig: 90, 117
+  offset: 0, 0
+  index: -1
+0046_PackDragon_1/Eye_1_1
+  rotate: false
+  xy: 232, 203
+  size: 15, 26
+  orig: 15, 26
+  offset: 0, 0
+  index: -1
+0046_PackDragon_1/Foot_1_1
+  rotate: true
+  xy: 232, 231
+  size: 31, 15
+  orig: 31, 15
+  offset: 0, 0
+  index: -1
+0046_PackDragon_1/Foot_1_2
+  rotate: true
+  xy: 232, 172
+  size: 29, 14
+  orig: 29, 14
+  offset: 0, 0
+  index: -1
+0046_PackDragon_1/Hadn_1_1
+  rotate: true
+  xy: 26, 5
+  size: 32, 30
+  orig: 32, 30
+  offset: 0, 0
+  index: -1
+0046_PackDragon_1/Hand_2_1
+  rotate: true
+  xy: 58, 5
+  size: 32, 29
+  orig: 32, 29
+  offset: 0, 0
+  index: -1
+0046_PackDragon_1/Head_1_1
+  rotate: false
+  xy: 121, 164
+  size: 109, 98
+  orig: 109, 98
+  offset: 0, 0
+  index: -1
+0046_PackDragon_1/Head_1_2
+  rotate: true
+  xy: 2, 39
+  size: 82, 61
+  orig: 82, 61
+  offset: 0, 0
+  index: -1
+0046_PackDragon_1/Leg_1_1
+  rotate: false
+  xy: 89, 2
+  size: 25, 44
+  orig: 25, 44
+  offset: 0, 0
+  index: -1
+0046_PackDragon_1/Leg_1_2
+  rotate: true
+  xy: 188, 76
+  size: 37, 53
+  orig: 37, 53
+  offset: 0, 0
+  index: -1
+0046_PackDragon_1/Leg_2_1
+  rotate: false
+  xy: 133, 48
+  size: 53, 51
+  orig: 53, 51
+  offset: 0, 0
+  index: -1
+0046_PackDragon_1/Leg_2_2
+  rotate: true
+  xy: 176, 115
+  size: 47, 61
+  orig: 47, 61
+  offset: 0, 0
+  index: -1
+0046_PackDragon_1/Mouth_1_1
+  rotate: false
+  xy: 101, 124
+  size: 73, 38
+  orig: 73, 38
+  offset: 0, 0
+  index: -1
+0046_PackDragon_1/Tail_1_1
+  rotate: true
+  xy: 2, 123
+  size: 47, 97
+  orig: 47, 97
+  offset: 0, 0
+  index: -1
+0047_PackDragon_1_Green/Jacket_1_1
+  rotate: true
+  xy: 116, 4
+  size: 42, 58
+  orig: 42, 58
+  offset: 0, 0
+  index: -1
+0047_PackDragon_1_Green/Jacket_1_2
+  rotate: false
+  xy: 65, 48
+  size: 66, 73
+  orig: 66, 73
+  offset: 0, 0
+  index: -1
+Shadow/Shadow_1_1
+  rotate: false
+  xy: 176, 10
+  size: 36, 36
+  orig: 36, 36
+  offset: 0, 0
+  index: -1

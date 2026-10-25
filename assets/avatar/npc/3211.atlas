@@ -1,0 +1,678 @@
+
+3211.webp
+size: 963,264
+format: RGBA8888
+filter: Linear,Linear
+repeat: none
+0017_Shadow/Shadow_1_1
+  rotate: false
+  xy: 692, 37
+  size: 36, 36
+  orig: 36, 36
+  offset: 0, 0
+  index: -1
+0018_Skill_1/Skill_1_1
+  rotate: true
+  xy: 580, 88
+  size: 30, 58
+  orig: 30, 58
+  offset: 0, 0
+  index: -1
+0018_Skill_1/Skill_1_2
+  rotate: false
+  xy: 360, 190
+  size: 99, 9
+  orig: 99, 9
+  offset: 0, 0
+  index: -1
+0018_Skill_1/Skill_1_5
+  rotate: false
+  xy: 226, 105
+  size: 73, 73
+  orig: 73, 73
+  offset: 0, 0
+  index: -1
+0018_Skill_1/Skill_2_1
+  rotate: false
+  xy: 219, 243
+  size: 139, 19
+  orig: 139, 19
+  offset: 0, 0
+  index: -1
+0018_Skill_1/Skill_2_2
+  rotate: false
+  xy: 219, 222
+  size: 139, 19
+  orig: 139, 19
+  offset: 0, 0
+  index: -1
+0018_Skill_1/Skill_2_3
+  rotate: false
+  xy: 360, 243
+  size: 139, 19
+  orig: 139, 19
+  offset: 0, 0
+  index: -1
+0018_Skill_1/Skill_2_4
+  rotate: false
+  xy: 219, 201
+  size: 139, 19
+  orig: 139, 19
+  offset: 0, 0
+  index: -1
+0018_Skill_1/Skill_2_5
+  rotate: false
+  xy: 360, 222
+  size: 139, 19
+  orig: 139, 19
+  offset: 0, 0
+  index: -1
+0018_Skill_1/Skill_2_6
+  rotate: false
+  xy: 501, 243
+  size: 139, 19
+  orig: 139, 19
+  offset: 0, 0
+  index: -1
+0018_Skill_1/Skill_2_7
+  rotate: false
+  xy: 219, 180
+  size: 139, 19
+  orig: 139, 19
+  offset: 0, 0
+  index: -1
+0018_Skill_1/Skill_2_8
+  rotate: false
+  xy: 360, 201
+  size: 139, 19
+  orig: 139, 19
+  offset: 0, 0
+  index: -1
+0052_Dogia_1_Useful/Arm_1_1
+  rotate: false
+  xy: 2, 2
+  size: 35, 17
+  orig: 35, 17
+  offset: 0, 0
+  index: -1
+0052_Dogia_1_Useful/Arm_1_2
+  rotate: false
+  xy: 2, 2
+  size: 35, 17
+  orig: 35, 17
+  offset: 0, 0
+  index: -1
+0052_Dogia_1_Useful/Body_1_1
+  rotate: true
+  xy: 115, 13
+  size: 49, 51
+  orig: 49, 51
+  offset: 0, 0
+  index: -1
+0052_Dogia_1_Useful/Body_1_2
+  rotate: true
+  xy: 59, 2
+  size: 39, 49
+  orig: 39, 49
+  offset: 0, 0
+  index: -1
+0052_Dogia_1_Useful/Butt_1_1
+  rotate: false
+  xy: 730, 43
+  size: 46, 34
+  orig: 46, 34
+  offset: 0, 0
+  index: -1
+0052_Dogia_1_Useful/Butt_1_2
+  rotate: false
+  xy: 853, 8
+  size: 15, 13
+  orig: 15, 13
+  offset: 0, 0
+  index: -1
+0052_Dogia_1_Useful/Butt_1_3
+  rotate: false
+  xy: 813, 192
+  size: 13, 15
+  orig: 13, 15
+  offset: 0, 0
+  index: -1
+0052_Dogia_1_Useful/Ear_1_1
+  rotate: true
+  xy: 361, 86
+  size: 44, 82
+  orig: 44, 82
+  offset: 0, 0
+  index: -1
+0052_Dogia_1_Useful/Ear_1_2
+  rotate: true
+  xy: 844, 93
+  size: 44, 42
+  orig: 44, 42
+  offset: 0, 0
+  index: -1
+0052_Dogia_1_Useful/Eye_1_1
+  rotate: true
+  xy: 528, 2
+  size: 10, 20
+  orig: 10, 20
+  offset: 0, 0
+  index: -1
+0052_Dogia_1_Useful/Foot_1_1
+  rotate: false
+  xy: 259, 92
+  size: 20, 11
+  orig: 20, 11
+  offset: 0, 0
+  index: -1
+0052_Dogia_1_Useful/Foot_1_2
+  rotate: false
+  xy: 259, 92
+  size: 20, 11
+  orig: 20, 11
+  offset: 0, 0
+  index: -1
+0052_Dogia_1_Useful/Hand_1_1
+  rotate: true
+  xy: 640, 75
+  size: 33, 47
+  orig: 33, 47
+  offset: 0, 0
+  index: -1
+0052_Dogia_1_Useful/Hand_1_2
+  rotate: true
+  xy: 329, 2
+  size: 27, 39
+  orig: 27, 39
+  offset: 0, 0
+  index: -1
+0052_Dogia_1_Useful/Hand_1_3
+  rotate: true
+  xy: 804, 83
+  size: 29, 38
+  orig: 29, 38
+  offset: 0, 0
+  index: -1
+0052_Dogia_1_Useful/Hand_1_4
+  rotate: false
+  xy: 939, 7
+  size: 21, 27
+  orig: 21, 27
+  offset: 0, 0
+  index: -1
+0052_Dogia_1_Useful/Hand_1_6
+  rotate: true
+  xy: 370, 2
+  size: 27, 39
+  orig: 27, 39
+  offset: 0, 0
+  index: -1
+0052_Dogia_1_Useful/Hat_1_1
+  rotate: true
+  xy: 2, 21
+  size: 117, 55
+  orig: 117, 55
+  offset: 0, 0
+  index: -1
+0052_Dogia_1_Useful/Hat_1_3
+  rotate: true
+  xy: 445, 79
+  size: 26, 51
+  orig: 26, 51
+  offset: 0, 0
+  index: -1
+0052_Dogia_1_Useful/Hat_1_4
+  rotate: true
+  xy: 39, 2
+  size: 17, 15
+  orig: 17, 15
+  offset: 0, 0
+  index: -1
+0052_Dogia_1_Useful/Head_1_1
+  rotate: false
+  xy: 642, 202
+  size: 92, 60
+  orig: 92, 60
+  offset: 0, 0
+  index: -1
+0052_Dogia_1_Useful/Head_1_2
+  rotate: false
+  xy: 143, 150
+  size: 17, 19
+  orig: 17, 19
+  offset: 0, 0
+  index: -1
+0052_Dogia_1_Useful/Leg_1_1
+  rotate: false
+  xy: 774, 81
+  size: 28, 32
+  orig: 28, 32
+  offset: 0, 0
+  index: -1
+0052_Dogia_1_Useful/Leg_1_2
+  rotate: false
+  xy: 912, 36
+  size: 28, 28
+  orig: 28, 28
+  offset: 0, 0
+  index: -1
+0052_Dogia_1_Useful/Object_1_1
+  rotate: false
+  xy: 736, 191
+  size: 75, 16
+  orig: 75, 16
+  offset: 0, 0
+  index: -1
+0052_Dogia_1_Useful/Object_1_3
+  rotate: false
+  xy: 736, 191
+  size: 75, 16
+  orig: 75, 16
+  offset: 0, 0
+  index: -1
+0052_Dogia_1_Useful/Object_1_2
+  rotate: false
+  xy: 226, 87
+  size: 31, 16
+  orig: 31, 16
+  offset: 0, 0
+  index: -1
+0052_Dogia_1_Useful/Shoulder_1_1
+  rotate: true
+  xy: 880, 11
+  size: 27, 28
+  orig: 27, 28
+  offset: 0, 0
+  index: -1
+0052_Dogia_1_Useful/Skirt_1_1
+  rotate: true
+  xy: 662, 36
+  size: 37, 28
+  orig: 37, 28
+  offset: 0, 0
+  index: -1
+0052_Dogia_1_Useful/Skirt_1_2
+  rotate: false
+  xy: 587, 2
+  size: 50, 32
+  orig: 50, 32
+  offset: 0, 0
+  index: -1
+0052_Dogia_1_Useful/Tail_1_1
+  rotate: false
+  xy: 2, 140
+  size: 77, 122
+  orig: 77, 122
+  offset: 0, 0
+  index: -1
+0052_Dogia_1_Useful/XZ/001
+  rotate: true
+  xy: 888, 115
+  size: 42, 68
+  orig: 42, 68
+  offset: 0, 0
+  index: -1
+0052_Dogia_1_Useful/XZ/002
+  rotate: false
+  xy: 600, 171
+  size: 40, 70
+  orig: 40, 70
+  offset: 0, 0
+  index: -1
+0052_Dogia_1_Useful/XZ/003
+  rotate: false
+  xy: 143, 171
+  size: 74, 91
+  orig: 74, 91
+  offset: 0, 0
+  index: -1
+0052_Dogia_1_Useful/XZ/004
+  rotate: false
+  xy: 301, 101
+  size: 58, 77
+  orig: 58, 77
+  offset: 0, 0
+  index: -1
+0052_Dogia_1_Useful/XZ/005
+  rotate: false
+  xy: 853, 23
+  size: 25, 31
+  orig: 25, 31
+  offset: 0, 0
+  index: -1
+0052_Dogia_1_Useful/XZ/006
+  rotate: false
+  xy: 574, 147
+  size: 24, 46
+  orig: 24, 46
+  offset: 0, 0
+  index: -1
+0052_Dogia_1_Useful/XZ/007
+  rotate: false
+  xy: 688, 2
+  size: 32, 32
+  orig: 32, 32
+  offset: 0, 0
+  index: -1
+0052_Dogia_1_Useful/XZ/008
+  rotate: true
+  xy: 881, 40
+  size: 24, 29
+  orig: 24, 29
+  offset: 0, 0
+  index: -1
+0052_Dogia_1_Useful/XZ/009
+  rotate: true
+  xy: 910, 8
+  size: 26, 27
+  orig: 26, 27
+  offset: 0, 0
+  index: -1
+0052_Dogia_1_Useful/XZ/010
+  rotate: false
+  xy: 587, 36
+  size: 38, 50
+  orig: 38, 50
+  offset: 0, 0
+  index: -1
+0052_Dogia_1_Useful/XZ/011
+  rotate: false
+  xy: 501, 195
+  size: 97, 46
+  orig: 97, 46
+  offset: 0, 0
+  index: -1
+0052_Dogia_1_Useful/XZ/012
+  rotate: false
+  xy: 916, 203
+  size: 45, 23
+  orig: 45, 23
+  offset: 0, 0
+  index: -1
+0052_Dogia_1_Useful/XZ/013
+  rotate: false
+  xy: 844, 139
+  size: 42, 69
+  orig: 42, 69
+  offset: 0, 0
+  index: -1
+0052_Dogia_1_Useful/XZ/014
+  rotate: true
+  xy: 888, 159
+  size: 42, 69
+  orig: 42, 69
+  offset: 0, 0
+  index: -1
+0052_Dogia_1_Useful/XZ/015
+  rotate: false
+  xy: 528, 14
+  size: 57, 65
+  orig: 57, 65
+  offset: 0, 0
+  index: -1
+0052_Dogia_1_Useful/XZ/016
+  rotate: true
+  xy: 845, 43
+  size: 11, 6
+  orig: 11, 6
+  offset: 0, 0
+  index: -1
+0052_Dogia_1_Useful/XZ/017
+  rotate: false
+  xy: 498, 135
+  size: 74, 58
+  orig: 74, 58
+  offset: 0, 0
+  index: -1
+0052_Dogia_1_Useful/XZ/018
+  rotate: false
+  xy: 813, 40
+  size: 30, 41
+  orig: 30, 41
+  offset: 0, 0
+  index: -1
+0052_Dogia_1_Useful/XZ/019
+  rotate: false
+  xy: 845, 56
+  size: 34, 35
+  orig: 34, 35
+  offset: 0, 0
+  index: -1
+0052_Dogia_1_Useful/XZ/020
+  rotate: false
+  xy: 829, 5
+  size: 22, 33
+  orig: 22, 33
+  offset: 0, 0
+  index: -1
+0052_Dogia_1_Useful/XZ/021
+  rotate: true
+  xy: 888, 66
+  size: 47, 64
+  orig: 47, 64
+  offset: 0, 0
+  index: -1
+0052_Dogia_1_Useful/XZ/022
+  rotate: true
+  xy: 59, 43
+  size: 95, 54
+  orig: 95, 54
+  offset: 0, 0
+  index: -1
+0052_Dogia_1_Useful/XZ/023
+  rotate: true
+  xy: 689, 75
+  size: 33, 34
+  orig: 33, 34
+  offset: 0, 0
+  index: -1
+0052_Dogia_1_Useful/XZ/024
+  rotate: false
+  xy: 627, 36
+  size: 33, 37
+  orig: 33, 37
+  offset: 0, 0
+  index: -1
+0052_Dogia_1_Useful/XZ/025
+  rotate: false
+  xy: 778, 43
+  size: 33, 36
+  orig: 33, 36
+  offset: 0, 0
+  index: -1
+0052_Dogia_1_Useful/XZ/026
+  rotate: true
+  xy: 222, 2
+  size: 81, 51
+  orig: 81, 51
+  offset: 0, 0
+  index: -1
+0052_Dogia_1_Useful/XZ/027
+  rotate: true
+  xy: 445, 107
+  size: 81, 51
+  orig: 81, 51
+  offset: 0, 0
+  index: -1
+0052_Dogia_1_Useful/XZ/028
+  rotate: true
+  xy: 168, 2
+  size: 81, 52
+  orig: 81, 52
+  offset: 0, 0
+  index: -1
+0052_Dogia_1_Useful/XZ/029
+  rotate: false
+  xy: 498, 81
+  size: 80, 52
+  orig: 80, 52
+  offset: 0, 0
+  index: -1
+0052_Dogia_1_Useful/XZ/030
+  rotate: true
+  xy: 115, 64
+  size: 84, 51
+  orig: 84, 51
+  offset: 0, 0
+  index: -1
+0052_Dogia_1_Useful/XZ/031
+  rotate: true
+  xy: 275, 2
+  size: 82, 52
+  orig: 82, 52
+  offset: 0, 0
+  index: -1
+0052_Dogia_1_Useful/XZ/032
+  rotate: false
+  xy: 361, 132
+  size: 82, 56
+  orig: 82, 56
+  offset: 0, 0
+  index: -1
+0052_Dogia_1_Useful/XZ/033
+  rotate: false
+  xy: 329, 31
+  size: 83, 53
+  orig: 83, 53
+  offset: 0, 0
+  index: -1
+0052_Dogia_1_Useful/XZ/034
+  rotate: false
+  xy: 826, 210
+  size: 88, 52
+  orig: 88, 52
+  offset: 0, 0
+  index: -1
+0052_Dogia_1_Useful/XZ/035
+  rotate: true
+  xy: 168, 85
+  size: 84, 56
+  orig: 84, 56
+  offset: 0, 0
+  index: -1
+0052_Dogia_1_Useful/XZ/036
+  rotate: false
+  xy: 642, 148
+  size: 85, 52
+  orig: 85, 52
+  offset: 0, 0
+  index: -1
+0052_Dogia_1_Useful/XZ/037
+  rotate: false
+  xy: 736, 209
+  size: 88, 53
+  orig: 88, 53
+  offset: 0, 0
+  index: -1
+0052_Dogia_1_Useful/XZ/038
+  rotate: true
+  xy: 792, 2
+  size: 36, 35
+  orig: 36, 35
+  offset: 0, 0
+  index: -1
+0052_Dogia_1_Useful/XZ/039
+  rotate: false
+  xy: 81, 150
+  size: 60, 112
+  orig: 60, 112
+  offset: 0, 0
+  index: -1
+0053_Dogia_1_Blue/Arm_1_1
+  rotate: true
+  xy: 725, 79
+  size: 34, 47
+  orig: 34, 47
+  offset: 0, 0
+  index: -1
+0053_Dogia_1_Blue/Arm_1_2
+  rotate: true
+  xy: 764, 2
+  size: 39, 26
+  orig: 39, 26
+  offset: 0, 0
+  index: -1
+0053_Dogia_1_Blue/Butt_1_1
+  rotate: true
+  xy: 600, 120
+  size: 49, 40
+  orig: 49, 40
+  offset: 0, 0
+  index: -1
+0053_Dogia_1_Blue/Glow_1_1
+  rotate: false
+  xy: 461, 190
+  size: 10, 9
+  orig: 10, 9
+  offset: 0, 0
+  index: -1
+0053_Dogia_1_Blue/Leg_1_1
+  rotate: true
+  xy: 916, 228
+  size: 34, 45
+  orig: 34, 45
+  offset: 0, 0
+  index: -1
+0053_Dogia_1_Blue/Leg_1_2
+  rotate: true
+  xy: 722, 2
+  size: 33, 40
+  orig: 33, 40
+  offset: 0, 0
+  index: -1
+0053_Dogia_1_Blue/Skirt_1_1
+  rotate: true
+  xy: 639, 2
+  size: 32, 47
+  orig: 32, 47
+  offset: 0, 0
+  index: -1
+0055_Skill_2/Skill_3_1
+  rotate: true
+  xy: 414, 2
+  size: 75, 36
+  orig: 75, 36
+  offset: 0, 0
+  index: -1
+0055_Skill_2/Skill_3_2
+  rotate: true
+  xy: 452, 2
+  size: 75, 36
+  orig: 75, 36
+  offset: 0, 0
+  index: -1
+0055_Skill_2/Skill_3_3
+  rotate: true
+  xy: 490, 2
+  size: 75, 36
+  orig: 75, 36
+  offset: 0, 0
+  index: -1
+0055_Skill_2/Skill_3_4
+  rotate: false
+  xy: 642, 110
+  size: 75, 36
+  orig: 75, 36
+  offset: 0, 0
+  index: -1
+0055_Skill_2/Skill_3_5
+  rotate: false
+  xy: 729, 153
+  size: 75, 36
+  orig: 75, 36
+  offset: 0, 0
+  index: -1
+0055_Skill_2/Skill_3_6
+  rotate: false
+  xy: 729, 115
+  size: 75, 36
+  orig: 75, 36
+  offset: 0, 0
+  index: -1
+0055_Skill_2/Skill_3_7
+  rotate: true
+  xy: 806, 114
+  size: 75, 36
+  orig: 75, 36
+  offset: 0, 0
+  index: -1

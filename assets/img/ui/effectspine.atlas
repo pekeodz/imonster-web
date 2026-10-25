@@ -1,0 +1,26 @@
+
+effect-1-4-1.webp
+size: 50,50
+format: RGBA8888
+filter: Linear,Linear
+repeat: none
+effect-1-4-1/a1
+  rotate: false
+  xy: 0, 0
+  size: 50, 50
+  orig: 50, 50
+  offset: 0, 0
+  index: -1
+
+effect-1-5-1.webp
+size: 162,16
+format: RGBA8888
+filter: Linear,Linear
+repeat: none
+effect-1-5-1/a1
+  rotate: false
+  xy: 0, 0
+  size: 162, 8
+  orig: 162, 8
+  offset: 0, 0
+  index: -1

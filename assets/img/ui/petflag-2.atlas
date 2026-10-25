@@ -1,0 +1,13 @@
+
+petflag-2.webp
+size: 107,127
+format: RGBA8888
+filter: Linear,Linear
+repeat: none
+bgfx5-4
+  rotate: false
+  xy: 2, 2
+  size: 103, 123
+  orig: 103, 123
+  offset: 0, 0
+  index: -1

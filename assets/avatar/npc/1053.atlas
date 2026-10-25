@@ -1,0 +1,181 @@
+
+1053.webp
+size: 804,269
+format: RGBA8888
+filter: Linear,Linear
+repeat: none
+001
+  rotate: false
+  xy: 613, 13
+  size: 43, 43
+  orig: 43, 43
+  offset: 0, 0
+  index: -1
+002
+  rotate: false
+  xy: 658, 13
+  size: 43, 43
+  orig: 43, 43
+  offset: 0, 0
+  index: -1
+003
+  rotate: false
+  xy: 339, 2
+  size: 37, 26
+  orig: 37, 26
+  offset: 0, 0
+  index: -1
+004
+  rotate: false
+  xy: 378, 7
+  size: 37, 21
+  orig: 37, 21
+  offset: 0, 0
+  index: -1
+005
+  rotate: true
+  xy: 482, 37
+  size: 28, 38
+  orig: 28, 38
+  offset: 0, 0
+  index: -1
+006
+  rotate: true
+  xy: 508, 4
+  size: 31, 43
+  orig: 31, 43
+  offset: 0, 0
+  index: -1
+007
+  rotate: true
+  xy: 732, 160
+  size: 37, 48
+  orig: 37, 48
+  offset: 0, 0
+  index: -1
+008
+  rotate: false
+  xy: 759, 21
+  size: 43, 48
+  orig: 43, 48
+  offset: 0, 0
+  index: -1
+009
+  rotate: false
+  xy: 608, 58
+  size: 99, 99
+  orig: 99, 99
+  offset: 0, 0
+  index: -1
+010
+  rotate: true
+  xy: 608, 159
+  size: 108, 122
+  orig: 108, 122
+  offset: 0, 0
+  index: -1
+011
+  rotate: true
+  xy: 202, 8
+  size: 57, 71
+  orig: 57, 71
+  offset: 0, 0
+  index: -1
+012
+  rotate: false
+  xy: 275, 3
+  size: 62, 62
+  orig: 62, 62
+  offset: 0, 0
+  index: -1
+013
+  rotate: true
+  xy: 709, 12
+  size: 57, 48
+  orig: 57, 48
+  offset: 0, 0
+  index: -1
+014
+  rotate: false
+  xy: 417, 3
+  size: 30, 25
+  orig: 30, 25
+  offset: 0, 0
+  index: -1
+015
+  rotate: true
+  xy: 423, 37
+  size: 28, 57
+  orig: 28, 57
+  offset: 0, 0
+  index: -1
+016
+  rotate: true
+  xy: 449, 7
+  size: 28, 57
+  orig: 28, 57
+  offset: 0, 0
+  index: -1
+018
+  rotate: true
+  xy: 2, 8
+  size: 57, 198
+  orig: 57, 198
+  offset: 0, 0
+  index: -1
+0_14
+  rotate: false
+  xy: 553, 4
+  size: 58, 39
+  orig: 58, 39
+  offset: 0, 0
+  index: -1
+0_4
+  rotate: false
+  xy: 339, 30
+  size: 82, 35
+  orig: 82, 35
+  offset: 0, 0
+  index: -1
+0_9
+  rotate: false
+  xy: 709, 71
+  size: 87, 86
+  orig: 87, 86
+  offset: 0, 0
+  index: -1
+Blade-1
+  rotate: false
+  xy: 2, 67
+  size: 200, 200
+  orig: 200, 200
+  offset: 0, 0
+  index: -1
+Blade-2
+  rotate: false
+  xy: 204, 67
+  size: 200, 200
+  orig: 200, 200
+  offset: 0, 0
+  index: -1
+Blade-3
+  rotate: false
+  xy: 406, 67
+  size: 200, 200
+  orig: 200, 200
+  offset: 0, 0
+  index: -1
+Butt_1_2
+  rotate: false
+  xy: 522, 45
+  size: 37, 20
+  orig: 37, 20
+  offset: 0, 0
+  index: -1
+Shadow
+  rotate: false
+  xy: 732, 199
+  size: 68, 68
+  orig: 68, 68
+  offset: 0, 0
+  index: -1

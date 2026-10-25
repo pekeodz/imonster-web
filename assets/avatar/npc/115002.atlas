@@ -1,0 +1,146 @@
+
+115002.webp
+size: 1405,156
+format: RGBA8888
+filter: Linear,Linear
+repeat: none
+1
+  rotate: true
+  xy: 1267, 11
+  size: 143, 136
+  orig: 143, 136
+  offset: 0, 0
+  index: -1
+10
+  rotate: true
+  xy: 241, 16
+  size: 26, 23
+  orig: 26, 23
+  offset: 0, 0
+  index: -1
+11
+  rotate: false
+  xy: 52, 10
+  size: 40, 43
+  orig: 40, 43
+  offset: 0, 0
+  index: -1
+12
+  rotate: true
+  xy: 2, 55
+  size: 99, 272
+  orig: 99, 272
+  offset: 0, 0
+  index: -1
+13
+  rotate: false
+  xy: 266, 6
+  size: 24, 16
+  orig: 24, 16
+  offset: 0, 0
+  index: -1
+14
+  rotate: true
+  xy: 266, 24
+  size: 29, 17
+  orig: 29, 17
+  offset: 0, 0
+  index: -1
+2
+  rotate: false
+  xy: 2, 2
+  size: 48, 51
+  orig: 48, 51
+  offset: 0, 0
+  index: -1
+3
+  rotate: false
+  xy: 276, 78
+  size: 129, 76
+  orig: 129, 76
+  offset: 0, 0
+  index: -1
+4
+  rotate: false
+  xy: 94, 44
+  size: 164, 9
+  orig: 164, 9
+  offset: 0, 0
+  index: -1
+5
+  rotate: true
+  xy: 188, 13
+  size: 29, 26
+  orig: 29, 26
+  offset: 0, 0
+  index: -1
+6
+  rotate: false
+  xy: 130, 8
+  size: 30, 34
+  orig: 30, 34
+  offset: 0, 0
+  index: -1
+7
+  rotate: true
+  xy: 216, 16
+  size: 26, 23
+  orig: 26, 23
+  offset: 0, 0
+  index: -1
+8
+  rotate: false
+  xy: 162, 10
+  size: 24, 32
+  orig: 24, 32
+  offset: 0, 0
+  index: -1
+9
+  rotate: true
+  xy: 94, 7
+  size: 35, 34
+  orig: 35, 34
+  offset: 0, 0
+  index: -1
+Shadow
+  rotate: false
+  xy: 292, 8
+  size: 68, 68
+  orig: 68, 68
+  offset: 0, 0
+  index: -1
+pe-0-10-1
+  rotate: false
+  xy: 407, 3
+  size: 170, 151
+  orig: 170, 151
+  offset: 0, 0
+  index: -1
+pe-0-10-2
+  rotate: false
+  xy: 579, 3
+  size: 170, 151
+  orig: 170, 151
+  offset: 0, 0
+  index: -1
+pe-0-10-3
+  rotate: false
+  xy: 751, 3
+  size: 170, 151
+  orig: 170, 151
+  offset: 0, 0
+  index: -1
+pe-0-10-4
+  rotate: false
+  xy: 923, 3
+  size: 170, 151
+  orig: 170, 151
+  offset: 0, 0
+  index: -1
+pe-0-10-5
+  rotate: false
+  xy: 1095, 3
+  size: 170, 151
+  orig: 170, 151
+  offset: 0, 0
+  index: -1

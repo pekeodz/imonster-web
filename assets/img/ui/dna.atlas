@@ -1,0 +1,27 @@
+
+dna.webp
+size: 323,77
+format: RGBA8888
+filter: Linear,Linear
+repeat: none
+Skill_1_3
+  rotate: false
+  xy: 257, 11
+  size: 64, 64
+  orig: 64, 64
+  offset: 0, 0
+  index: -1
+Skill_1_5
+  rotate: false
+  xy: 182, 2
+  size: 73, 73
+  orig: 73, 73
+  offset: 0, 0
+  index: -1
+dna
+  rotate: false
+  xy: 2, 40
+  size: 178, 35
+  orig: 182, 39
+  offset: 2, 2
+  index: -1

@@ -1,0 +1,153 @@
+
+deathfx-1.webp
+size: 434,538
+format: RGBA8888
+filter: Linear,Linear
+repeat: none
+Obj_31
+  rotate: false
+  xy: 2, 350
+  size: 93, 186
+  orig: 93, 186
+  offset: 0, 0
+  index: -1
+Obj_32
+  rotate: true
+  xy: 2, 2
+  size: 63, 84
+  orig: 63, 84
+  offset: 0, 0
+  index: -1
+Obj_33
+  rotate: true
+  xy: 190, 74
+  size: 86, 123
+  orig: 86, 123
+  offset: 0, 0
+  index: -1
+Obj_34
+  rotate: false
+  xy: 2, 162
+  size: 93, 186
+  orig: 93, 186
+  offset: 0, 0
+  index: -1
+Obj_35
+  rotate: false
+  xy: 276, 14
+  size: 52, 58
+  orig: 52, 58
+  offset: 0, 0
+  index: -1
+Obj_36
+  rotate: false
+  xy: 97, 350
+  size: 93, 186
+  orig: 93, 186
+  offset: 0, 0
+  index: -1
+Obj_37
+  rotate: false
+  xy: 97, 162
+  size: 93, 186
+  orig: 93, 186
+  offset: 0, 0
+  index: -1
+Obj_38
+  rotate: true
+  xy: 2, 67
+  size: 93, 186
+  orig: 93, 186
+  offset: 0, 0
+  index: -1
+Obj_39
+  rotate: false
+  xy: 192, 350
+  size: 93, 186
+  orig: 93, 186
+  offset: 0, 0
+  index: -1
+Obj_40
+  rotate: false
+  xy: 192, 162
+  size: 93, 186
+  orig: 93, 186
+  offset: 0, 0
+  index: -1
+Obj_41
+  rotate: false
+  xy: 287, 350
+  size: 93, 186
+  orig: 93, 186
+  offset: 0, 0
+  index: -1
+Obj_42
+  rotate: false
+  xy: 287, 162
+  size: 93, 186
+  orig: 93, 186
+  offset: 0, 0
+  index: -1
+Obj_43
+  rotate: false
+  xy: 382, 452
+  size: 50, 84
+  orig: 50, 84
+  offset: 0, 0
+  index: -1
+Obj_44
+  rotate: false
+  xy: 315, 76
+  size: 50, 84
+  orig: 50, 84
+  offset: 0, 0
+  index: -1
+Obj_45
+  rotate: true
+  xy: 88, 15
+  size: 50, 84
+  orig: 50, 84
+  offset: 0, 0
+  index: -1
+Obj_46
+  rotate: false
+  xy: 382, 366
+  size: 50, 84
+  orig: 50, 84
+  offset: 0, 0
+  index: -1
+Obj_47
+  rotate: false
+  xy: 382, 280
+  size: 50, 84
+  orig: 50, 84
+  offset: 0, 0
+  index: -1
+Obj_48
+  rotate: false
+  xy: 382, 194
+  size: 50, 84
+  orig: 50, 84
+  offset: 0, 0
+  index: -1
+Obj_49
+  rotate: false
+  xy: 367, 76
+  size: 50, 84
+  orig: 50, 84
+  offset: 0, 0
+  index: -1
+Obj_50
+  rotate: true
+  xy: 190, 22
+  size: 50, 84
+  orig: 50, 84
+  offset: 0, 0
+  index: -1
+Obj_51
+  rotate: true
+  xy: 330, 24
+  size: 50, 84
+  orig: 50, 84
+  offset: 0, 0
+  index: -1

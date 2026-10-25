@@ -1,0 +1,76 @@
+
+bird-1.webp
+size: 110,141
+format: RGBA8888
+filter: Linear,Linear
+repeat: none
+spine-2-1
+  rotate: false
+  xy: 56, 44
+  size: 28, 23
+  orig: 28, 23
+  offset: 0, 0
+  index: -1
+spine-2-11
+  rotate: false
+  xy: 2, 2
+  size: 36, 32
+  orig: 36, 32
+  offset: 0, 0
+  index: -1
+spine-2-12
+  rotate: false
+  xy: 2, 36
+  size: 52, 40
+  orig: 52, 40
+  offset: 0, 0
+  index: -1
+spine-2-2
+  rotate: false
+  xy: 2, 78
+  size: 63, 61
+  orig: 63, 61
+  offset: 0, 0
+  index: -1
+spine-2-3
+  rotate: false
+  xy: 65, 27
+  size: 25, 15
+  orig: 25, 15
+  offset: 0, 0
+  index: -1
+spine-2-4
+  rotate: false
+  xy: 40, 12
+  size: 23, 22
+  orig: 23, 22
+  offset: 0, 0
+  index: -1
+spine-2-6
+  rotate: false
+  xy: 40, 2
+  size: 9, 8
+  orig: 9, 8
+  offset: 0, 0
+  index: -1
+spine-2-7
+  rotate: false
+  xy: 67, 101
+  size: 37, 38
+  orig: 37, 38
+  offset: 0, 0
+  index: -1
+spine-2-8
+  rotate: false
+  xy: 67, 69
+  size: 35, 30
+  orig: 35, 30
+  offset: 0, 0
+  index: -1
+spine-2-9
+  rotate: false
+  xy: 86, 49
+  size: 22, 18
+  orig: 22, 18
+  offset: 0, 0
+  index: -1

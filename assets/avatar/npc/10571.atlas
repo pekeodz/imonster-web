@@ -1,0 +1,174 @@
+
+10571.webp
+size: 1146,275
+format: RGBA8888
+filter: Linear,Linear
+repeat: none
+001
+  rotate: false
+  xy: 437, 28
+  size: 43, 43
+  orig: 43, 43
+  offset: 0, 0
+  index: -1
+002
+  rotate: false
+  xy: 482, 28
+  size: 43, 43
+  orig: 43, 43
+  offset: 0, 0
+  index: -1
+003
+  rotate: false
+  xy: 881, 12
+  size: 37, 26
+  orig: 37, 26
+  offset: 0, 0
+  index: -1
+006
+  rotate: true
+  xy: 836, 7
+  size: 31, 43
+  orig: 31, 43
+  offset: 0, 0
+  index: -1
+008
+  rotate: false
+  xy: 921, 8
+  size: 43, 48
+  orig: 43, 48
+  offset: 0, 0
+  index: -1
+009
+  rotate: false
+  xy: 972, 30
+  size: 99, 99
+  orig: 99, 99
+  offset: 0, 0
+  index: -1
+010
+  rotate: false
+  xy: 972, 131
+  size: 142, 142
+  orig: 142, 142
+  offset: 0, 0
+  index: -1
+011
+  rotate: true
+  xy: 84, 3
+  size: 68, 85
+  orig: 68, 85
+  offset: 0, 0
+  index: -1
+012
+  rotate: false
+  xy: 241, 9
+  size: 62, 62
+  orig: 62, 62
+  offset: 0, 0
+  index: -1
+013
+  rotate: true
+  xy: 921, 58
+  size: 57, 48
+  orig: 57, 48
+  offset: 0, 0
+  index: -1
+014
+  rotate: true
+  xy: 378, 23
+  size: 48, 57
+  orig: 48, 57
+  offset: 0, 0
+  index: -1
+015
+  rotate: false
+  xy: 1116, 216
+  size: 28, 57
+  orig: 28, 57
+  offset: 0, 0
+  index: -1
+016
+  rotate: false
+  xy: 1116, 157
+  size: 28, 57
+  orig: 28, 57
+  offset: 0, 0
+  index: -1
+018
+  rotate: true
+  xy: 608, 20
+  size: 95, 226
+  orig: 95, 226
+  offset: 0, 0
+  index: -1
+021
+  rotate: false
+  xy: 305, 14
+  size: 71, 57
+  orig: 71, 57
+  offset: 0, 0
+  index: -1
+76
+  rotate: true
+  xy: 1073, 3
+  size: 53, 64
+  orig: 53, 64
+  offset: 0, 0
+  index: -1
+79
+  rotate: false
+  xy: 836, 40
+  size: 83, 75
+  orig: 83, 75
+  offset: 0, 0
+  index: -1
+80
+  rotate: false
+  xy: 2, 2
+  size: 80, 69
+  orig: 80, 69
+  offset: 0, 0
+  index: -1
+Blade-1
+  rotate: false
+  xy: 2, 73
+  size: 200, 200
+  orig: 200, 200
+  offset: 0, 0
+  index: -1
+Blade-2
+  rotate: false
+  xy: 204, 73
+  size: 200, 200
+  orig: 200, 200
+  offset: 0, 0
+  index: -1
+Blade-3
+  rotate: false
+  xy: 406, 73
+  size: 200, 200
+  orig: 200, 200
+  offset: 0, 0
+  index: -1
+Hat_1_1
+  rotate: false
+  xy: 1073, 58
+  size: 70, 71
+  orig: 70, 71
+  offset: 0, 0
+  index: -1
+Shadow
+  rotate: false
+  xy: 171, 3
+  size: 68, 68
+  orig: 68, 68
+  offset: 0, 0
+  index: -1
+圣体 1
+  rotate: true
+  xy: 608, 117
+  size: 156, 362
+  orig: 156, 362
+  offset: 0, 0
+  index: -1
