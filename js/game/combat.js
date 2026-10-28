@@ -42,17 +42,21 @@ function updateCooldowns(dt) { const n = U.init(heroUnit()).n; for (const k in n
 const usingSkills = () => [...combatSlots().filter(Boolean), adventureSkill()].filter(Boolean);
 
 // ---------------------------------------------------------------- AttackBehavior
+// LocalTime::getCurrentSeconds: gettimeofday as a double (sec + usec*1e-6); AI `_time` = now - AttackBehavior+0x40 (wall clock)
+const wallSeconds = () => Date.now() / 1000;
 // states: 1 approach, 3 battle, 5 escaping, 7 attacker won (walks into the tile), 8 won, 4 attacker died, 6 escaped
 class AttackBehavior {
   constructor(C, att, tgt) { this.C = C; this.att = att; this.tgt = tgt; this.state = 0; this.info = new Map(); this.hits = 0; this.t0 = C.now; this.timer = null; }
   other(u) { return u === this.att ? this.tgt : u === this.tgt ? this.att : null; }
   init() {
-    this.state = 1; this.t0 = this.C.now;
+    this.state = 1; this.t0 = wallSeconds();
     U.init(this.att); this.att.n.fighting = true; this.att.n.enemy = this.tgt;   // getEnemy / isInFighting: attacker's chain only
-    resetBattle();
+    this.C.t.notifyEnterBattle(this.tgt);   // GameController::notifyEnterBattle (C_ENTER_BATTLE -> story "battle begin")
     if (U.isHero(this.att) && isNearDeath(this.att)) Audio2.play('dying-1');
+    resetBattle();
     this.enterBattle();   // NOTE: the native approach walk (state 1, half a tile) is visual only and skipped
   }
+  onWin() { this.C.winWalk(this); }   // AttackBehavior::update state 7: walk into the tile -> 8 -> end
   enterBattle() {
     const a = this.att, t = this.tgt;
     this.state = 3;
@@ -70,7 +74,7 @@ class AttackBehavior {
     this.info.set(u, U.calAttackDamage(u, o, 0, false, false, 1));
     if (!U.onAttackingEnemy(u, o)) this.C.playAttack(u, f32(f32(U.actionRate(u) * U.fin(u).fin_atk_speed) / 100));
     if (U.isMonster(u)) {
-      if (Script.monsterAIAction(u, o, prev, this.C.now - this.t0)) this.info.set(u, newInfo());
+      if (Script.monsterAIAction(u, o, prev, wallSeconds() - this.t0)) this.info.set(u, newInfo());
     }
   }
   onHit(u) {
@@ -103,7 +107,7 @@ class AttackBehavior {
       }
       GC.dealKillUnit(this.att, this.tgt, 0);
       this.state = 7;
-      this.C.winWalk(this);
+      this.onWin();
     }
   }
   escape() {   // msg_C_ESCAPE_BATTLE
@@ -129,6 +133,41 @@ class AttackBehavior {
     this.att.n.chain.cancelAll(); U.init(this.tgt).n.chain.cancelAll();
     this.att.n.fighting = false; this.att.n.enemy = null;
     this.C.onBattleEnd(this, res);
+  }
+}
+// FightBehavior (AttackBehavior.cpp): MyPlayer::attack on a rank-4 monster -> MoveBehavior + FightBehavior (no StandBehavior).
+// init: a hidden boss (Unit state 5) gets C_BOSS_APPEAR and the battle starts when its "appear" animation completes;
+// otherwise C_ENTER_BATTLE + enterBattle at once (no approach walk). update() only runs the timer: at state 7 there is
+// no walk-in, the battle ends (win) when the attacker's attack animation completes.
+// end(): states 4/6/7/8 -> onLeaveBattle(1/2/0/0), other states > 1 -> 2; C_LEAVE_BATTLE only for 4 (1), 6 (2), 7/8 (0).
+class FightBehavior extends AttackBehavior {
+  init() {
+    this.state = 1; this.t0 = wallSeconds();
+    U.init(this.att); this.att.n.fighting = true; this.att.n.enemy = this.tgt;
+    if ((this.tgt.state | 0) === 5) {
+      this.C.t.bossAppear(this.tgt, () => {   // msg_C_UNIT_ANIM_COMPLETE(state 5, target)
+        if (this.done) return;
+        this.C.t.notifyEnterBattle(this.tgt);
+        this.enterBattle();
+      });
+    } else {
+      this.C.t.notifyEnterBattle(this.tgt);
+      this.enterBattle();
+    }
+    resetBattle();
+  }
+  onWin() { }
+  startNewAttack(u) { if (this.state === 7 && u === this.att) { this.end(); return; } super.startNewAttack(u); }
+  end() {
+    if (this.done) return; this.done = true;
+    const st = this.state;
+    const res = st === 4 ? 1 : st === 6 ? 2 : st === 7 || st === 8 ? 0 : 1 < st ? 2 : -1;
+    if (this.timer) this.timer.cancel = true;
+    if (res >= 0) { U.onLeaveBattle(this.att, this.tgt, res); U.onLeaveBattle(this.tgt, this.att, res); }
+    this.att.n.chain.cancelAll(); U.init(this.tgt).n.chain.cancelAll();
+    this.att.n.fighting = false; this.att.n.enemy = null;
+    const notify = st === 4 ? 1 : st === 6 ? 2 : st === 7 || st === 8 ? 0 : -1;
+    this.C.onBattleEnd(this, notify);
   }
 }
 const isNearDeath = u => { const hp = U.hp(u); return 0 < hp && hp <= trunc(U.fin(u).max_hp / 5); };
@@ -174,15 +213,14 @@ export class Combat {
   // ---- battle
   startBattle(m) {
     if (this.ab && !this.ab.done) return;
-    const ab = new AttackBehavior(this, this.hero, m);
+    const ab = 4 === U.rank(m) ? new FightBehavior(this, this.hero, m) : new AttackBehavior(this, this.hero, m);   // MyPlayer::attack
     this.ab = ab; ab.init();
-    if (this.t.pet) this.t.pet.fightStart?.(m);
   }
   escape() { if (this.ab && !this.ab.done) this.ab.escape(); }
   inBattle() { return !!(this.ab && !this.ab.done); }
   onBattleEnd(ab, res) {
     if (this.ab === ab) this.ab = null;
-    this.t.onBattleEnd(ab.tgt, res === 0 ? 'win' : res === 1 ? 'die' : 'flee');
+    this.t.onBattleEnd(ab.tgt, res === 0 ? 'win' : res === 1 ? 'die' : res === 2 ? 'flee' : null);
   }
   winWalk(ab) {   // state 7: the attacker walks into the target tile, then state 8 -> end (win)
     this.t.walkInto(ab.att, ab.tgt, () => { if (ab.done) return; ab.state = 8; ab.end(); });

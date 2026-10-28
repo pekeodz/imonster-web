@@ -56,6 +56,13 @@ def main(src, data):
         if (f.startswith('bg-') or f.startswith('masker-')) and f.endswith('.ccbi'):
             d = ccbi.parse(open(os.path.join(src, f), 'rb').read())
             fx[f[:-5]] = {'seq': {s['name']: [s['id'], round(s['dur'], 4), s['chain']] for s in d['seqs']}, 'root': node(d['root'])}
+    # elite / champion ground rings (TowerView::_addMonster: rank 2 -> ccb/object/leaderfx-1, rank 3 -> leaderfx-2)
+    obj = os.path.join(os.path.dirname(src.rstrip('/')), 'object')
+    for n in ('leaderfx-1', 'leaderfx-2'):
+        f = os.path.join(obj, n + '.ccbi')
+        if os.path.exists(f):
+            d = ccbi.parse(open(f, 'rb').read())
+            fx[n] = {'seq': {s['name']: [s['id'], round(s['dur'], 4), s['chain']] for s in d['seqs']}, 'root': node(d['root'])}
     json.dump(fx, open(os.path.join(data, 'towerfx.json'), 'w'), separators=(',', ':'))
     print('towerfx', len(fx), os.path.getsize(os.path.join(data, 'towerfx.json')))
 

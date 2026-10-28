@@ -71,8 +71,9 @@ export const StoryHost = {
   // ---- tower
   FindRoundMonster: () => { const t = G?.tower; if (!t) return null; const m = t.nearestMonster(); return m ? { x: m.wx, y: m.wy, id: m.id } : null; },
   FindRoundSpace: () => { const t = G?.tower; if (!t) return null; const c = t.freeTileNear(t.hero.x, t.hero.y, 1, 3); return c ? { col: c[0], row: c[1] } : null; },
-  GetMonsterCount: () => { const t = G?.tower; if (!t) return Lua.multi(0, 0, 0, 0); const a = t.units.filter(u => !u.isHero && u.alive); return Lua.multi(a.length, a.filter(u => u.rank === 1).length, a.filter(u => u.rank === 2 || u.rank === 3).length, a.filter(u => u.rank >= 4).length); },
-  AddMonster: (id, rank, lvOff, col, row) => { G?.tower?.spawnMonster(id, rank || 1, lvOff || 0, col, row); return null; },
+  // ScriptMgr::LGetMonsterCount: r1+r2+r3, r1, r2, r3 (bosses are not counted)
+  GetMonsterCount: () => { const t = G?.tower; if (!t) return Lua.multi(0, 0, 0, 0); const a = t.units.filter(u => !u.isHero && u.alive); const n = r => a.filter(u => u.rank === r).length; return Lua.multi(n(1) + n(2) + n(3), n(1), n(2), n(3)); },
+  AddMonster: (id, rank, lv, col, row) => { if (!G?.tower) return false; G.tower.spawnMonster(id, rank | 0, lv, col, row); return true; },   // ScriptMgr::LAddMonster (lv = absolute level)
   AddMapObject: (type, name, param, col, row) => { G?.tower?.addScriptObject(type, name, param, col, row); return null; },
   BreakMapObject: (name) => { G?.tower?.removeScriptObject(name); return null; },
   FindMapObject: name => { const o = G?.tower?.objects.find(o => o.name === name); return o ? { col: o.x, row: o.y } : null; },

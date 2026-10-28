@@ -11,7 +11,8 @@ import { makeAny, rollDropSet, resolveDrop, itemName, itemIcon, itemQuality, ite
 import { Combat, AFFIX_NAMES } from './combat.js';
 import { story } from './story.js';
 import { adventureSkill } from './skills.js';
-import { U, GC } from './native/core.js';
+import { U, GC, f32, trunc } from './native/core.js';
+import { arc4random } from '../engine/nativerng.js';
 import { Ctx, bindHero, bumpStats, bottleLimit, finMPCost } from './native/bridge.js';
 import { Traps } from './traps.js';
 import { Ornaments, loadOrna, loadTowerFx, towerFx, drawCCB, ccbAssets } from './ornaments.js';
@@ -69,10 +70,13 @@ export class Tower {
     this.traps = new Traps(this);
     this.tileset = String(row.Image || 1);
     if (!DB.frames['map/tile-' + this.tileset]) this.tileset = '1';
-    if (+row.Generate === 1 && row.FixedMap !== '' && DB.fixedmaps?.[row.FixedMap]) this.buildFixed(DB.fixedmaps[row.FixedMap]);
+    // GameMap::resetWithID: Generate 0 random, 1 fixed, 2 boss
+    const gen = +row.Generate, fm = row.FixedMap !== '' ? DB.fixedmaps?.[row.FixedMap] : null;
+    this.boss = null; this.bossId = 0;
+    if ((gen === 1 || gen === 2) && fm) this.buildFixed(fm, gen === 2);
     else this.buildRandom();
     const trapIds = Traps.wanted(this);
-    if (trapIds.length && !(+row.Generate === 1)) this.traps.build(trapIds);
+    if (trapIds.length && gen === 0) this.traps.build(trapIds);
     this.revealed = new Uint8Array(this.grid.w * this.grid.h);
     this.orna = new Ornaments(this);
     try { await loadOrna(); this.orna.build(); } catch (e) { console.warn('ornaments', e); }
@@ -81,7 +85,7 @@ export class Tower {
     try { await loadTowerFx(); } catch (e) { }
     this.bgFx = towerFx('bg-' + this.tileset); this.maskFx = towerFx('masker-' + this.tileset);
     this.fxEm = { bg: new Map(), mask: new Map() };
-    for (const d of [this.bgFx, this.maskFx]) if (d) { const a = ccbAssets(d); on.sheets.push(...a.sheets.filter(k => DB.frames[k])); on.tex.push(...a.tex); }
+    for (const d of [this.bgFx, this.maskFx, towerFx('leaderfx-1'), towerFx('leaderfx-2')]) if (d) { const a = ccbAssets(d); on.sheets.push(...a.sheets.filter(k => DB.frames[k])); on.tex.push(...a.tex); }
     const ap = activePet();
     if (ap) this.pet = new PetRuntime(this, ap.id, ap);
     // assets
@@ -168,21 +172,69 @@ export class Tower {
         break;
       }
     }
-    // monsters
-    const ids = String(this.row.MonsterID || '').split(';').filter(Boolean).map(Number).filter(id => DB.monster.has(id));
-    if (!ids.length) ids.push(101000);
-    const ranks = [];
-    for (let i = 0; i < (cfg.monster | 0); i++) ranks.push(1);
-    for (let i = 0; i < (cfg.blue_monster | 0); i++) ranks.push(2);
-    for (let i = 0; i < (cfg.gold_monster | 0); i++) ranks.push(3);
-    for (const rank of ranks) {
-      const pos = take((x, y) => dist[x + y * g.w] >= 4);
-      if (!pos) break;
-      this.addMonster(this.rng.pick(ids), rank, pos[0], pos[1]);
+    // monsters: GameMap::genRandomMap (monster part)
+    this.placeRandomMonsters(cfg, candidates, born, far);
+  }
+  // GameMap::genRandomMap, monster part. Counts: "monster" always, "blue_monster" from Floor 6, "gold_monster" from Floor 21;
+  // Level > 50 on tower maps (ID>>4 < 625): 3/10 of the normal count become blue, 1/10 gold.
+  // Maps with ID>>4 >= 625 and Level >= 21: rate = (Level-20)*0.02 + 1 + GameMap+0x68 (server hard rate, 0 offline).
+  // Monster IDs cycle through MapTemplate MonsterID from a random start; ranks are placed 3 -> 2 -> 1.
+  // Tiles: 50% from the "round floors" list (4 neighbours of placed objects, push_front), else popped from the shuffled
+  // road list with an 80% "no entity on a 4-neighbour" rule; never on an entity, the born or the pass tile.
+  // VERIFY (P1 map generator): the road list / object placement are still the web generator, only the rules above are native.
+  placeRandomMonsters(cfg, roads, born, pass) {
+    const F = this.floor, L = this.level, big = (this.mapId >>> 4) >= 625;
+    const cnt = [0, cfg.monster | 0, F < 6 ? 0 : cfg.blue_monster | 0, F < 21 ? 0 : cfg.gold_monster | 0];
+    let rate = 1;
+    if (L < 21 || !big) {
+      if (50 < L && !big) { const n = cnt[1], a = trunc((n * 3) / 10), b = trunc(n / 10); cnt[1] = n - b - a; cnt[2] += a; cnt[3] += b; }
+    } else rate = f32(f32(f32(f32(L - 20) * f32(0.02)) + 1) + f32(0));   // + GameMap+0x68 (server hard rate, 0 offline)
+    this.monsterRate = rate;
+    const ids = String(this.row.MonsterID ?? '').split(';').filter(x => x !== '').map(Number);
+    if (!ids.length) return;
+    const g = this.grid, n4 = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+    // round floors: GameMap::pushRoundFloors for every placed object except types 20,21,22,23,25,27,28 (type 19: three times)
+    const round = [];
+    const pushRound = o => { for (const [dx, dy] of n4) { const x = o.x + dx, y = o.y + dy; if (g.isFloor(x, y)) round.unshift([x, y]); } };
+    for (const o of this.objects) {
+      if (o.type <= 28 && [20, 21, 22, 23, 25, 27, 28].includes(o.type)) continue;
+      pushRound(o); if (o.type === 19) { pushRound(o); pushRound(o); }
+    }
+    const entityAt = (x, y) => !!(this.unitAt(x, y) || this.objAt(x, y));
+    const isBorn = (x, y) => x === born[0] && y === born[1], isPass = (x, y) => pass && x === pass[0] && y === pass[1];
+    let idx = arc4random() % ids.length;
+    const tutorial = this.mapId === 1 && !P.data.story?.fin?.[40];   // MyPlayer::isStoryFinished(40)
+    for (let rank = 3; rank >= 1; rank--) {
+      for (let k = 0; k < cnt[rank]; k++) {
+        idx = (idx + 1) % ids.length;
+        const id = ids[idx];
+        if (!DB.monster.has(id)) { console.warn(`create monster[${id}] in map[${this.mapId}] failed.`); continue; }
+        let pos = null;
+        for (let guard = 0; guard < 10000 && !pos; guard++) {
+          let x, y;
+          if (rank === 1 && k === 0 && tutorial) {   // first tutorial monster next to the born tile
+            const [bx, by] = born; const ok = (tx, ty) => g.isFloor(tx, ty) && !entityAt(tx, ty) && !isPass(tx, ty);
+            if (ok(bx + 1, by)) [x, y] = [bx + 1, by]; else if (ok(bx, by - 1)) [x, y] = [bx, by - 1]; else if (ok(bx - 1, by)) [x, y] = [bx - 1, by]; else [x, y] = [bx, by + 1];
+          } else if (round.length && !(49 < arc4random() % 100)) {
+            [x, y] = round.shift();
+          } else {
+            if (!roads.length) break;
+            [x, y] = roads.pop();
+            if (arc4random() % 100 < 80 && n4.some(([dx, dy]) => entityAt(x + dx, y + dy))) continue;
+          }
+          if (g.isFloor(x, y) && !entityAt(x, y) && !isBorn(x, y) && !isPass(x, y)) pos = [x, y];
+        }
+        if (!pos) break;   // road list exhausted: the rest of this rank is skipped
+        this.addMonster(id, rank, pos[0], pos[1], L, rate);
+      }
     }
   }
 
-  buildFixed(m) {
+  // GameMap::genFixedMap (Generate 1) / GameMap::genBossMap (Generate 2) from MapTemplate::loadObjectLayer data.
+  // "mon_<id>_<rank>": rank 0/missing -> 3; object name = key name, properties = scripts (OnDead ...).
+  // Fixed: every FixMonster (lv = map Level, Content 2 -> direction 3). Boss: only the first FixMonster, rank 4,
+  // state 5 (hidden until C_BOSS_APPEAR), direction 3 -- none on maps 1012 / 1016 (MapTemplate::hasBoss).
+  buildFixed(m, boss = false) {
     const W = m.width, H = m.height, pad = 2;
     const g = new Grid(W + pad * 2, H + pad * 2);
     const layer = m.layers.find(l => l.type === 'tilelayer');
@@ -191,17 +243,28 @@ export class Tower {
     this.grid = g; this.blocked = new Uint8Array(g.w * g.h);
     this.born = [pad, pad]; this.pass = null;
     const objs = (m.layers.find(l => l.type === 'objectgroup') || { objects: [] }).objects;
+    const props = o => { const p = o.properties; if (!p) return {}; if (Array.isArray(p)) { const r = {}; for (const x of p) r[x.name] = String(x.value ?? ''); return r; } const r = {}; for (const k in p) r[k] = String(p[k] ?? ''); return r; };
+    const mons = [];
     for (const o of objs) {
       const x = Math.floor((o.x + (o.width || 100) / 2) / 100) + pad;
       const y = Math.floor((o.y - (o.height || 100) / 2) / 100) + pad;
       const t = o.type || o.name || '';
       if (t === 'entry') this.born = [x, y];
       else if (t === 'exit') this.pass = [x, y];
-      else if (t.startsWith('mon_')) { const [, id, rank] = t.split('_'); if (DB.monster.has(+id)) this.addMonster(+id, +rank || 1, x, y); }
+      else if (t.startsWith('mon_')) { const f = t.split('_'); mons.push({ id: +f[1] | 0, rank: (+f[2] | 0) || 3, x, y, key: o.name || '', scripts: props(o) }); }
       else if (t.startsWith('obj_')) {
         const type = +t.split('_')[1];
-        if (OBJ_ART[type]) { this.objects.push({ type, x, y, open: false }); this.blocked[x + y * g.w] = 1; }
+        if (OBJ_ART[type]) { this.objects.push({ type, x, y, open: false, name: o.name || '', scripts: props(o) }); this.blocked[x + y * g.w] = 1; }
       }
+    }
+    if (boss) {
+      const b = mons[0];
+      this.bossId = b ? b.id : 0;   // GameMap::setBossID
+      if (b && this.mapId !== 1012 && this.mapId !== 1016 && DB.monster.has(b.id))
+        this.boss = this.addMonster(b.id, 4, b.x, b.y, this.level, 1, { key: b.key, scripts: b.scripts, state: 5, dir3: true });
+    } else {
+      const dir3 = +this.row.Content === 2;
+      for (const b of mons) if (DB.monster.has(b.id)) this.addMonster(b.id, b.rank, b.x, b.y, this.level, 1, { key: b.key, scripts: b.scripts, dir3 });
     }
     if (!this.pass) {
       const d = bfs(g, this.born[0], this.born[1]); let best = -1;
@@ -240,19 +303,28 @@ export class Tower {
     }
     return c.length ? c[Math.floor(Math.random() * c.length)] : null;
   }
-  async spawnMonster(id, rank, lvOff, col, row) {
-    if (!DB.monster.has(+id)) return;
-    let pos = (col != null && row != null && this.passable(col, row)) ? [col, row] : null;
+  // ScriptMgr::LAddMonster(id, rank [, lv [, col, row]]) -> GameMap::addRandomMonster: lv defaults to the map level;
+  // tile (0,0)/missing -> random road tile (GameMap::getRoads: empty floor, row-major) except the hero / pet tiles
+  async spawnMonster(id, rank, lv, col, row) {
+    if (!DB.monster.has(+id)) return false;
+    let pos = (col | 0) !== 0 && (row | 0) !== 0 ? [col | 0, row | 0] : null;
     if (!pos) {
-      const d = bfs(this.grid, this.hero.x, this.hero.y, (x, y) => this.passable(x, y) || (x === this.hero.x && y === this.hero.y));
-      const c = []; for (let i = 0; i < d.length; i++) if (d[i] >= 3) c.push([i % this.grid.w, (i / this.grid.w) | 0]);
-      pos = c.length ? c[Math.floor(Math.random() * c.length)] : this.freeTileNear(this.hero.x, this.hero.y, 1, 6);
+      const g = this.grid, h = this.hero, pet = this.pet?.unit, roads = [];
+      for (let y = 0; y < g.h; y++) for (let x = 0; x < g.w; x++) {
+        if (!g.isFloor(x, y) || this.objAt(x, y) || this.unitAt(x, y) || (this.pass && x === this.pass[0] && y === this.pass[1])) continue;
+        if (h && x === h.x && y === h.y) continue;
+        if (pet && x === pet.x && y === pet.y) continue;
+        roads.push([x, y]);
+      }
+      if (!roads.length) return false;
+      pos = roads[arc4random() % roads.length];
     }
-    if (!pos) return;
-    const u = this.addMonster(+id, rank, pos[0], pos[1], this.level + (+lvOff || 0));
+    const level = Number.isInteger(lv) ? lv : this.level;
+    const u = this.addMonster(+id, rank | 0, pos[0], pos[1], level);
     await this.loadMonsterActor(u);
     this.combat.setupMonster(u);
     if (this.revealed[this.idx(u.x, u.y)]) u.seen = true;
+    return true;
   }
   addScriptObject(type, name, param, col, row) {
     let pos = (col != null && row != null && this.grid.isFloor(col, row) && !this.objAt(col, row)) ? [col, row] : this.freeTileNear(this.hero.x, this.hero.y, 2, 6) || this.freeTileNear(this.hero.x, this.hero.y, 1, 10);
@@ -263,7 +335,7 @@ export class Tower {
     if (type === 31 || type === 27) this.loadNpcActor(o);
     return o;
   }
-  removeScriptObject(name) { this.objects = this.objects.filter(o => o.name !== name); }
+  removeScriptObject(name) { for (const o of this.objects) if (o.name === name && this.blocked) this.blocked[this.idx(o.x, o.y)] = 0; this.objects = this.objects.filter(o => o.name !== name); }
   async loadNpcActor(o) {
     try {
       const data = await loadSkeletonData('ui/goblin-' + (/0001$|_1$/.test(o.name || '') ? 2 : 1), 'assets/img/');
@@ -271,13 +343,15 @@ export class Tower {
       o.actor.play([...o.actor.names].find(n => /stand|idle|normal/.test(n)) || [...o.actor.names][0], true);
     } catch (e) { }
   }
-  addMonster(id, rank, x, y, level) {
+  // Monster::initWithData {id, lv, r, rate}; key name / scripts from the fixed-map object
+  addMonster(id, rank, x, y, level, rate = 1, extra = {}) {
     const rec = DB.monster.get(id);
-    // rate: GameMap::genRandomMap -> 1 for normal maps (server-side bonus for lv>=21 maps is not available offline)
     // MapTemplate.ResInc is added to the PLAYER's resistances (MyPlayer::getFinXResist), not to monsters
-    let st = monsterStats(rec, level ?? this.level, rank, 0, 1);
+    let st = monsterStats(rec, level ?? this.level, rank, 0, rate);
     if (this.hard) st = Modes.hardScale(st);   // NON-ORIGINAL: web hard mode (original hard rate came from the server)
-    const u = { id, rec, rank, x, y, st, hp: st.max_hp, alive: true, isHero: false, dir: 3, flip: this.rng.chance(0.5), wx: x * T + 50, wy: -(y * T + 50) - 20, aware: false, alpha: 1 };
+    const u = { id, rec, rank, x, y, st, hp: st.max_hp, alive: true, isHero: false, dir: 3, flip: this.rng.chance(0.5), wx: x * T + 50, wy: -(y * T + 50) - 20, aware: false, alpha: 1,
+      key: extra.key || '', scripts: extra.scripts || {}, state: extra.state | 0 };
+    if (extra.dir3) u.flip = false;
     u.mp = st.max_mp; u.onDie = () => this.monsterDie(u);
     this.units.push(u);
     return u;
@@ -286,13 +360,15 @@ export class Tower {
     try {
       const data = await loadSkeletonData('npc/' + String(u.rec.MonsterModel).padStart(3, '0'));
       const sk = new spine.Skeleton(data);
-      const sc = u.rank >= 4 ? 1.25 : u.rank === 3 ? 1.12 : u.rank === 2 ? 1.06 : 1;
+      const sc = u.rank === 3 ? 1.2 : 1;   // TowerView::_addMonster: rank 3 -> 1.2, others 1.0 (BossNode 1.0)
       sk.scaleX = sk.scaleY = sc; u.baseScale = sc;
       u.actor = new SpineActor(sk);
-      u.actor.play('stand-1-3', true);
+      // a hidden boss (Unit state 5) waits in its "hide" pose until C_BOSS_APPEAR
+      if (u.state === 5 && u.actor.names.has('hide-1-3')) u.actor.play('hide-1-3', true);
+      else u.actor.play('stand-1-3', true);
       u.actor.state.update(Math.random() * 2);
-      if (u.rank === 2) sk.color.set(0.75, 0.85, 1.25, 1);
-      if (u.rank === 3) sk.color.set(1.2, 1.05, 0.6, 1);
+      // rank 2 / 3: ground ring ccb/object/leaderfx-1 / -2 under the model (no tint)
+      if (u.rank === 2 || u.rank === 3) u.ring = towerFx(u.rank === 2 ? 'leaderfx-1' : 'leaderfx-2');
     } catch (e) { console.warn('monster model', u.rec.MonsterModel, e); }
   }
   async spawnHero() {
@@ -515,13 +591,34 @@ export class Tower {
     this.fight = { mon, time: 0 };
     h.path = null; h.dir = 3;
     this.ui.enemy(mon);
-    story('battle begin', { mon_id: mon.id });
     this.combat.startBattle(mon);
   }
-  // AttackBehavior::end -> notifyLeaveBattle
+  // C_ENTER_BATTLE (TowerView::msg_C_ENTER_BATTLE): veil off, enemy info, ScriptMgr::triggerBattleBegin(template id)
+  notifyEnterBattle(mon) {
+    if (this.g.veil && this.bossVeil) { this.g.veil = false; this.bossVeil = false; }
+    this.ui.enemy(mon);
+    if (this.pet) this.pet.fightStart?.(mon);   // TODO P1 (pet runtime): web pet joins when the battle is entered
+    story('battle begin', { mon_id: mon.id });
+  }
+  // C_BOSS_APPEAR (TowerView::msg_C_BOSS_APPEAR): veil + input off, MapTemplate BossBGM, BossNode "appear" animation,
+  // boss 501233 walls the tile left of the hero, ScriptMgr::triggerBossAppear(template id). The battle starts when the
+  // appear animation completes (FightBehavior::msg_C_UNIT_ANIM_COMPLETE, state 5).
+  bossAppear(mon, done) {
+    this.g.veil = true; this.bossVeil = true;
+    if (this.row.BossBGM) Audio2.playBGM(this.row.BossBGM);
+    if (+mon.id === 501233) { const h = this.hero; this.grid.set(h.x - 1, h.y, WALL); }
+    story('boss appear', { mon_id: mon.id });
+    const fin = () => { mon.state = 0; done(); };
+    const a = mon.actor;
+    if (a && a.names?.has('appear-1-3')) { a.cur = null; a.play('appear-1-3', false, () => { a.cur = null; a.play('stand-1-3', true); fin(); }); }
+    else fin();
+  }
+  // AttackBehavior / FightBehavior::end -> GameController::notifyLeaveBattle(template id, rank, level, result)
+  //   -> ScriptMgr::triggerBattleEnd {result, mon_id, mon_rank, mon_lv}
   onBattleEnd(mon, result) {
     const f = this.fight; this.fight = null;
-    story('battle end', { result: result === 'win' ? 0 : result === 'die' ? 1 : 2, mon_id: mon?.id });
+    if (this.bossVeil) { this.g.veil = false; this.bossVeil = false; }
+    if (result) story('battle end', { result: result === 'win' ? 0 : result === 'die' ? 1 : 2, mon_id: mon?.id, mon_rank: mon?.rank | 0, mon_lv: mon?.st?.lv | 0 });
     this.ui.enemy(null);
     if (this.hero.alive) this.heroIdle(true);
     if (mon?.alive && mon.actor) { mon.actor.cur = null; mon.actor.play('stand-1-3', true); }
@@ -564,8 +661,14 @@ export class Tower {
   }
   // Monster::die -> OnDead script, Unit::die (state dead), GameMap::removeMonster
   monsterDie(m) {
+    const sc = m.scripts?.OnDead;   // Entity::getScript("OnDead") -> ScriptExecutor::runString
+    if (sc) { try { Lua.exec(sc, 'OnDead'); } catch (e) { console.warn('OnDead', e); } }
     m.alive = false; m.removed = true; m.hp = 0; m.dieT = 0;
-    Audio2.play(m.rec.DeathSound);
+    // MonsterNode::dieAnimate: one random DeathSound; BossNode::dieAnimate: death-1-3 then deathloop-1-3 (the body stays)
+    const snd = String(m.rec.DeathSound ?? '').split(',').filter(Boolean);
+    if (snd.length) Audio2.play(snd[arc4random() % snd.length]);
+    const a = m.actor;
+    if (m.rank === 4 && a && a.names.has('death-1-3')) { m.corpse = true; a.cur = null; a.play('death-1-3', false, () => { if (a.names.has('deathloop-1-3')) a.play('deathloop-1-3', true); }); }
     this.ui.enemy(null);
   }
   dropFrom(field, wx, wy) {
@@ -683,11 +786,7 @@ export class Tower {
           h.carry = Math.min(sp - d, 40);
           this.reveal(h.x, h.y);
           if (this.pass && !this.nearPassFired && Math.abs(h.x - this.pass[0]) + Math.abs(h.y - this.pass[1]) <= 2) { this.nearPassFired = true; story('near pass', {}); }
-          // ambush: an aware monster adjacent starts a fight
-          const adj = this.units.find(u => u.alive && !u.isHero && u.seen && Math.abs(u.x - h.x) + Math.abs(u.y - h.y) === 1 && (u.rank >= 2 || u === h.intent?.attack || Math.random() < 0.5));
-          if (adj && !h.intent?.cb && !this.fight && !(h.intent && h.intent.attack === adj && h.path.length)) {
-            if (h.intent?.attack !== adj || !h.path.length) { h.path = null; h.intent = null; this.startFight(adj); }
-          }
+          // native: monsters never start a fight (only MyPlayer::attack via tap / RushBehavior::touchEntity) -> no ambush
           if (h.path && !h.path.length) { h.path = null; this.arrive(); }
           this.ui.hud(this);
         } else { h.wx += dx / d * sp; h.wy += dy / d * sp; }
@@ -695,10 +794,11 @@ export class Tower {
     }
     if (this.fight) this.fight.time += dt;
     this.traps.update(dt);
-    if (this.pet) { this.pet.follow(h, dt); this.pet.update(dt, this.fight); this.pet.unit.actor?.update(dt); }
+    if (this.pet) { this.pet.follow(h, dt); this.pet.update(dt, this.combat.ab?.state === 3 || this.combat.ab?.state === 5 ? this.fight : null);   // TODO P1 pet runtime; only while the battle is entered
+      this.pet.unit.actor?.update(dt); }
     for (const u of this.units) {
       if (u.hitT) u.hitT = Math.max(0, u.hitT - dt);
-      if (!u.alive && !u.isHero) { u.dieT += dt; u.alpha = Math.max(0, 1 - u.dieT / 0.8); }
+      if (!u.alive && !u.isHero && !u.corpse) { u.dieT += dt; u.alpha = Math.max(0, 1 - u.dieT / 0.8); }
       if (u.actor && (u.alive || u.alpha > 0 || u.isHero)) u.actor.update(U.isAbnormal(u, 2) ? 0 : dt);   // froze: animation paused
     }
     this.units = this.units.filter(u => u.isHero || u.alive || u.alpha > 0);
@@ -822,10 +922,10 @@ export class Tower {
     if (!u.isHero && !u.isPet) sk.scaleX = (u.flip ? 1 : -1) * base; // monsters art faces left by default
     if (u.isPet) { sk.scaleX = (u.flip ? 1 : -1) * base; const c0 = sk.color; c0.set(1, 1, 1, 1); sk.updateWorldTransform(); this.gfx.drawSkeleton(sk); return; }
     const c = sk.color;
-    const tintR = u.rank === 3 ? 1.2 : u.rank === 2 ? 0.8 : 1, tintG = u.rank === 3 ? 1.05 : u.rank === 2 ? 0.9 : 1, tintB = u.rank === 3 ? 0.6 : u.rank === 2 ? 1.3 : 1;
     const flash = u.hitT ? 2 : 1;
     if (u.isHero) c.set(flash, u.hitT ? 0.6 : 1, u.hitT ? 0.6 : 1, u.alpha ?? 1);
-    else c.set(tintR * flash, tintG * flash, tintB * flash, u.alpha ?? 1);
+    else c.set(flash, flash, flash, u.alpha ?? 1);
+    if (u.ring && u.alive) { const q = u.ring.seq.normal || Object.values(u.ring.seq)[0]; drawCCB(this.gfx, u.ring, { sid: q[0], t: q[1] > 0 ? this.time % q[1] : 0, root: [1, 0, 0, 1, u.wx, u.wy], now: this.time }); }
     sk.updateWorldTransform();
     this.gfx.drawSkeleton(sk);
   }
