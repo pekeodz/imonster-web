@@ -1,3 +1,4 @@
+import { atkSpdText } from '../game/stats.js';
 // Original-layout screens built from the game's own CocosBuilder scenes (see ccb.js):
 // character / bag (ui/package + ui/item), and the shared item cell (object/button-6-1).
 import { DB, S } from '../engine/db.js';
@@ -148,7 +149,7 @@ export class BagPanel {
     if (it.eq) {
       v.text('item_base', '');
       const lines = [];
-      if (+r.Type >= 10 && +r.Type <= 12 && it.spd) lines.push(`<div class="ccb-attr base">Tốc đánh ${it.spd}%</div>`);
+      if (+r.Type >= 10 && +r.Type <= 12 && it.spd) lines.push(`<div class="ccb-attr base">Tốc đánh ${atkSpdText(it.spd)}</div>`);
       for (const b of it.base) lines.push(`<div class="ccb-attr base">${attrText(b.a, b.v)}</div>`);
       for (const b of it.affix) lines.push(`<div class="ccb-attr aff">${attrText(b.a, b.v)}</div>`);
       for (const g of it.gems || []) if (g) lines.push(`<div class="ccb-attr gem">◆ ${g.attrs.map(a => attrText(a.a, a.v)).join(', ')}</div>`);
@@ -225,7 +226,7 @@ export async function openPackage(ui) {
     v.text('fire_atk_value', fmt(s.fire_atk)); v.text('cold_atk_value', fmt(s.cold_atk)); v.text('poison_atk_value', fmt(s.poison_atk)); v.text('light_atk_value', fmt(s.light_atk));
     v.text('def_value', fmt(s.defense));
     v.text('fire_def_value', s.fire_res + '%'); v.text('cold_def_value', s.cold_res + '%'); v.text('poison_def_value', s.poison_res + '%'); v.text('light_def_value', s.light_res + '%');
-    v.text('atk_speed_value', String(s.fin_atk_speed)); v.text('hit_value', String(s.hit)); v.text('dodge_value', String(s.dodge));
+    v.text('atk_speed_value', atkSpdText(s.fin_atk_speed)); v.text('hit_value', String(s.hit)); v.text('dodge_value', String(s.dodge));
     v.text('crit_value', s.critical + '%'); v.text('crit_damage_value', s.crit_dam + '%');
     v.text('fortunate_value', String(s.luck || 0)); v.text('exp_extra_value', (s.exp_bonus || 0) + '%'); v.text('gold_extra_value', (s.gold_bonus || 0) + '%');
     let total = 0; for (const it of Object.values(p.equipped)) if (it) total += score(it);

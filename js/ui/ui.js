@@ -1,3 +1,4 @@
+import { atkSpdText } from '../game/stats.js';
 // DOM user interface (HUD, menus, panels). Text in Vietnamese; game content from the original string table.
 import { DB, S, richText, setLang } from '../engine/db.js';
 import { Audio2 } from '../engine/audio.js';
@@ -298,7 +299,7 @@ export class UI {
       panel.append(h('div', { class: 'statbox', style: { margin: 'calc(14*var(--u)) 0' } },
         h('span', {}, 'HP', h('b', {}, `${Math.ceil(p.hp)}/${s.max_hp}`)), h('span', {}, 'MP', h('b', {}, `${Math.ceil(p.mp)}/${s.max_mp}`)),
         h('span', {}, 'Tấn công', h('b', {}, `${s.min_atk}-${s.max_atk}`)), h('span', {}, 'Phòng thủ', h('b', {}, s.defense)),
-        h('span', {}, 'Tốc đánh', h('b', {}, String(s.fin_atk_speed))), h('span', {}, 'Chính xác', h('b', {}, s.hit)),
+        h('span', {}, 'Tốc đánh', h('b', {}, atkSpdText(s.fin_atk_speed))), h('span', {}, 'Chính xác', h('b', {}, s.hit)),
         h('span', {}, 'Né tránh', h('b', {}, s.dodge)), h('span', {}, 'Chí mạng', h('b', {}, s.critical + '% / +' + s.crit_dam + '%')),
         h('span', {}, 'Kháng Lửa/Băng', h('b', {}, `${s.fire_res}/${s.cold_res}`)), h('span', {}, 'Kháng Sét/Độc', h('b', {}, `${s.light_res}/${s.poison_res}`)),
         h('span', {}, 'EXP', h('b', {}, `${fmt(p.exp)}/${fmt(expRow(p.level)?.NextExp)}`)), h('span', {}, 'Vàng', h('b', {}, fmt(p.gold)))));
@@ -325,7 +326,7 @@ export class UI {
     if (it.eq) {
       const typeName = S('itemtype_' + r.Type) || '';
       lines.push(h('div', { class: 'ln muted' }, `${typeName} · Cấp thuộc tính ${it.lv}`));
-      if (+r.Type >= 10 && +r.Type <= 12) lines.push(h('div', { class: 'ln' }, `Tốc độ đánh: ${it.spd}%`));
+      if (+r.Type >= 10 && +r.Type <= 12) lines.push(h('div', { class: 'ln' }, `Tốc độ đánh: ${atkSpdText(it.spd)}`));
       for (const b of it.base) lines.push(h('div', { class: 'ln bas' }, attrText(b.a, b.v)));
       for (const b of it.affix) lines.push(h('div', { class: 'ln aff' }, attrText(b.a, b.v)));
       const ns = it.q >= 4 ? 3 : it.q === 3 ? 2 : it.q === 2 ? 1 : 0;

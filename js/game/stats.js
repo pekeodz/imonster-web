@@ -162,3 +162,8 @@ export function perHitAttack(v, times) {
   const k = f32(f32(f32(times - 1) * f32(0.2)) + 1);
   return Math.trunc(f32(f32(k * f32(v)) / f32(times)));
 }
+
+// UI value of ATK SPD. Native shows (value / 2) truncated toward zero everywhere a speed is displayed:
+// Equipment::getBasicDescription (AtkSpdMult 333 -> "ATK SPD: 166") and PackageView::updatePlayerInfo
+// (getFinAttackSpeed() / 2). Combat keeps the raw value (attack anim, 2 s long, plays at speed/100).
+export function atkSpdText(v) { return String(Math.trunc((v | 0) / 2)); }

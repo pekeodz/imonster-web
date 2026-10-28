@@ -17,7 +17,7 @@ Everything marked **VERIFY/TODO** is not reversed yet and must not be "balanced"
 | `sw.randi` / `sw.rand` | both registered to `ScriptExecutor::Lrand`: both args integer subtype → `lo=min, hi=max, lo + arc4random() % (hi-lo+1)` (int32); otherwise float `lo + (hi-lo) * ((arc4random() % 100001) * 1e-5f)` | `engine/nativerng.js` (raw Lua host fn) |
 | `sw.SuccessRandom(p)` | `(arc4random()%100001)*1e-5f <= f32(p * 0.01f)` | `LSuccessRandom` |
 | Skill damage | `Unit::calSkillDamage`: atk=max(0,val+hook), def/res=max(0,stat+hook); phys `int(CalPhysicalDamage(lvA, atk, def))`; elem `int(CalEleDmg(atk, max(1,lvA), res, max(1,lvB)))`; `int(CalCriticalDamage(force, dmg, crit, critDmg))` | `Combat.skillDamage` (removed web crit/2 and 90% res clamp) |
-| ATK SPD | 100 = 2 s/attack; no 0.2 s cap found | `attackInterval`; UI shows `207`, not `207%` |
+| ATK SPD | internal value = AtkSpdMult (e.g. Simple Dagger 333); attack anim (2 s) plays at speed/100 (`AttackBehavior::startNewAttack`), no 0.2 s cap. **UI shows value/2** (`Equipment::getBasicDescription`, `PackageView::updatePlayerInfo`: `asr #1`) → 333 shows as 166 | `attackInterval`; `atkSpdText()` |
 | Hard mode +100 LUC | no client-side bonus; original "hard rate" came from the server (`GameMap+0x68`) | removed |
 | 9 equipment slots | no Type 13/45 rows in equip.csv | `EQUIP_SLOTS` (save migration moves offhand/ring2 to bag) |
 | Specialization roll | `CalEquipmentSpecial(equID, specID)` incl. the 6 hard-coded overrides | `makeEquip` stores `it.spec=[{id,p1,p2}]`; old saves rolled once on load |
