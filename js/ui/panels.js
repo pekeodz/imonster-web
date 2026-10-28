@@ -8,7 +8,7 @@ import { P, stats, save, addItem, removeItem, addExp } from '../game/profile.js'
 import { itemName, itemIcon, itemQuality, itemRecord, attrText, QUALITY_COLORS, makeEquip, makeItem, makeAny, toLuaEqu, iconUrl, resolveDrop } from '../game/items.js';
 import { Modes, HARD_UNLOCK_FLOOR, LAB_UNLOCK_FLOOR, FASHION_PRICE, fashionRows, fashionSlot } from '../game/modes.js';
 import { Daily, BP_TIERS } from '../game/daily.js';
-import { PET_PRICE, petName, petIcon, petStats, petSkills, petSkillDesc, addPet, capLevel, nextInfo, feedValue, levelUp, petRec } from '../game/pets.js';
+import { PET_PRICE, petName, petIcon, petStats, petSkills, petSkillDesc, addPet, capLevel, nextInfo, feedValue, levelUp, petRec, normalizePet } from '../game/pets.js';
 import { GEM, isGem, socketCount, gemAttrs, inlayCost, inlay, unsocket, breakupResult, breakup, knownRecipes, learnRecipe, recipeInputs, countItem, canCraft, recipeCost, craft, CATEGORY_VI } from '../game/craft.js';
 import { resetSkills } from '../game/skills.js';
 import { story } from '../game/story.js';
@@ -92,7 +92,7 @@ Object.assign(UI.prototype, {
       }
       panel.append(row);
       const own = p.pets[sel];
-      const pd = own || { lv: 1, star: 1, exp: 0 };
+      const pd = own ? normalizePet(own) : { lv: 1, star: 1, exp: 0, gene: 0 };
       const st = petStats(sel, pd);
       const box = h('div', { class: 'col', style: { gap: 'calc(8*var(--u))' } });
       box.append(h('div', { class: 'row' }, h('b', { style: { fontSize: 'calc(30*var(--u))' } }, petName(sel)), h('span', { class: 'grow' }),
@@ -119,13 +119,13 @@ Object.assign(UI.prototype, {
         const n = nextInfo(pd);
         if (n.max) btns.append(h('span', { class: 'pill' }, 'Đã tối đa'));
         else {
-          const label = n.starUp ? ['Thăng sao ', gold(n.gold)] : [`Lên cấp (${fmt(pd.exp)}/${fmt(n.exp)} EXP) `, gold(n.gold)];
+          const label = n.evolve ? [`Tiến hóa (Gene ${fmt(pd.gene || 0)}/${fmt(n.gene)}) `, gold(n.gold)] : [`Lên cấp (${fmt(pd.exp)}/${fmt(n.exp)} EXP) `, gold(n.gold)];
           btns.append(h('button', { class: 'btn', onclick: () => { const e = levelUp(sel); if (e) this.toast(e); else { Audio2.play('levelup-2'); save(); render(); } } }, ...label));
         }
         btns.append(h('button', { class: 'btn small', onclick: () => this.feedPet(sel, render) }, 'Cho ăn trang bị'));
       }
       box.append(btns);
-      box.append(h('p', { class: 'center muted', style: { fontSize: 'calc(18*var(--u))' } }, 'Thú cưng nhận 50% EXP mỗi quái bạn hạ. Cho ăn trang bị để nhận EXP nhanh.'));
+      box.append(h('p', { class: 'center muted', style: { fontSize: 'calc(18*var(--u))' } }, `Gene: ${fmt(pd.gene || 0)} · Nhận trùng cùng thú cưng sẽ +1 Gene. Pet đạt Lv.${capLevel(pd)} mới có thể tiến hóa.`));
       panel.append(box);
     };
     render();

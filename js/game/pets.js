@@ -30,7 +30,8 @@ export function petStats(id, pd) {
   s.avg = (s.min_atk + s.max_atk) / 2 + (s.fire_atk + s.cold_atk + s.light_atk + s.poison_atk) / 2;
   return s;
 }
-// skill i (0..4) unlocks at star i+1; level grows with stars (max 5, last skill max 1)
+// Native Pet::checkSkillAvailability: skill slot i (0..4) is available when star > i (star >= i+1).
+// Skill level growth below is still VERIFY until the 300xxx native runtime is fully reversed.
 export function petSkills(id, pd) {
   const r = petRec(id); const out = [];
   for (let i = 0; i < 5; i++) {
@@ -82,13 +83,41 @@ export function petSkillDesc(sid, lv, avg) {
 }
 
 // ---- progression
-export function addPet(id) { P.data.pets ||= {}; if (!P.data.pets[id]) P.data.pets[id] = { lv: 1, star: 1, exp: 0 }; if (!P.data.petActive) P.data.petActive = id; }
-export function capLevel(pd) { return pd.star * 10; }
+const EVOLVE_GENE = Object.freeze({ 1: 2, 2: 4, 3: 8, 4: 16 });
+
+export function normalizePet(pd) {
+  if (!pd) return pd;
+  if (!Number.isFinite(+pd.lv) || +pd.lv < 1) pd.lv = 1;
+  if (!Number.isFinite(+pd.star) || +pd.star < 1) pd.star = 1;
+  if (!Number.isFinite(+pd.exp) || +pd.exp < 0) pd.exp = 0;
+  // Native Pet has a separate geneCount. Old web saves did not have it, so preserve them as 0.
+  if (!Number.isFinite(+pd.gene) || +pd.gene < 0) pd.gene = 0;
+  return pd;
+}
+
+// Native MyPlayer::addOwnPet: obtaining a duplicate owned pet adds exactly +1 geneCount.
+export function addPet(id) {
+  P.data.pets ||= {};
+  const old = P.data.pets[id];
+  if (old) {
+    normalizePet(old);
+    old.gene = (old.gene | 0) + 1;
+    return { duplicate: true, gene: old.gene };
+  }
+  P.data.pets[id] = { lv: 1, star: 1, exp: 0, gene: 0 };
+  if (!P.data.petActive) P.data.petActive = id;
+  return { duplicate: false, gene: 0 };
+}
+
+// Native Pet::getLevelLimit(): star * 10.
+export function capLevel(pd) { normalizePet(pd); return (pd.star | 0) * 10; }
+export function evolveGeneNeed(pd) { normalizePet(pd); return EVOLVE_GENE[pd.star | 0] || 0; }
 export function nextInfo(pd) {
+  normalizePet(pd);
   const row = statRow(pd.star, pd.lv);
   if (pd.lv >= capLevel(pd)) {
     if (pd.star >= 5) return { max: true };
-    return { starUp: true, gold: +row.NextGold || 0 };
+    return { evolve: true, gold: +row.NextGold || 0, gene: evolveGeneNeed(pd), haveGene: pd.gene | 0 };
   }
   return { exp: +row.NextExp || 0, gold: +row.NextGold || 0 };
 }
@@ -98,10 +127,18 @@ export function feedValue(it) {
   return v ? (v[0] | 0) : 0;
 }
 export function levelUp(id) {
-  const pd = P.data.pets[id]; const n = nextInfo(pd);
+  const pd = normalizePet(P.data.pets[id]); const n = nextInfo(pd);
   if (n.max) return 'Đã tối đa';
   if (P.data.gold < n.gold) return 'Không đủ vàng';
-  if (n.starUp) { P.data.gold -= n.gold; pd.star++; return null; }
+  if (n.evolve) {
+    if ((pd.gene | 0) < n.gene) return `Không đủ gene (${pd.gene | 0}/${n.gene})`;
+    // Native feedbackPetEvolve: subtract NextGold + required gene count, then star += 1; level is preserved.
+    P.data.gold -= n.gold;
+    pd.gene = (pd.gene | 0) - n.gene;
+    pd.star++;
+    return null;
+  }
+  // Existing web level-up/feed flow remains until PetUpgradeView/checkUpgradePet is fully ported.
   if (pd.exp < n.exp) return 'Chưa đủ kinh nghiệm';
   P.data.gold -= n.gold; pd.exp -= n.exp; pd.lv++; return null;
 }
