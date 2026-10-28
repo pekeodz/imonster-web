@@ -52,21 +52,26 @@ export function equipSums(equipped) {
     for (const b of it.base) add(b.a, b.v, true);
     for (const b of it.affix) add(b.a, b.v, false);
     for (const g of it.gems || []) if (g) for (const b of g.attrs || []) add(b.a, b.v, false);
-    // TODO VERIFY: specialization effects with getAttribBenefit/getAttribGain (EquipEffect_2xx..6xx) are not applied yet
+    // legacy flat sums (UI compare / non-hero callers). The hero's live layer is bridge.calAttribWithEquipments (all EquipEffect objects incl. specialization)
   }
   return { base, bene, gain, raw };
 }
 // kept for older callers: flat sum by property id
 export function equipAttrs(equipped) { return equipSums(equipped).raw; }
 
+// Hero character base per UnitAttrib (second argument of Hero::calAttribWithEquipments)
+export function heroCharBase(p) {
+  const e = expRow(p.level), weapon = p.equipped?.weapon;
+  return { 1: e.Attack, 2: e.Attack, 4: e.Defense, 5: e.MaxHP, 6: e.MaxMP, 7: e.FireRes, 8: e.ColdRes, 9: e.LightRes, 10: e.PoisonRes,
+    15: e.Hit, 16: e.Dodge, 17: e.Critical, 18: e.CritDam, 19: weapon ? weapon.spd : 100 };
+}
 export function playerStats(p) {
   const e = expRow(p.level);
   const E = equipSums(p.equipped);
   const weapon = p.equipped.weapon;
   // character base per UnitAttrib (Unit stats from exp table). TODO VERIFY: Hero extra fields 0x154..0x170
   // (second addend in Hero::getFinX) are not reversed yet -> 0.
-  const charBase = { 1: e.Attack, 2: e.Attack, 4: e.Defense, 5: e.MaxHP, 6: e.MaxMP, 7: e.FireRes, 8: e.ColdRes, 9: e.LightRes, 10: e.PoisonRes,
-    15: e.Hit, 16: e.Dodge, 17: e.Critical, 18: e.CritDam, 19: weapon ? weapon.spd : 100 };
+  const charBase = heroCharBase(p);
   const s = { type: 'MyPlayer', lv: p.level, raw_atk_speed: weapon ? weapon.spd : 100 };
   for (const k in UNIT_ATTR) {
     const a = +k;
@@ -76,9 +81,7 @@ export function playerStats(p) {
     const bene = (E.bene[a] || 0) + (feeds3 ? (E.bene[3] || 0) : 0);
     s[UNIT_ATTR[a]] = equipLayer(base, gain, bene);
   }
-  // property ids that are runtime hooks, not UnitAttrib getters (kept as plain sums)
-  const g = id => E.raw[id] || 0;
-  s.steal_hp = g(36); s.kill_hp_pct = g(40); s.thorn = g(48); s.phys_reduce = g(51); s.heal_bonus = g(53);
+  // runtime-hook properties (36 steal, 40, 48 thorn, 51, 53 ...) are EquipEffect objects (native/equipfx.js), not stats
   s.cur_hp = p.hp ?? s.max_hp; s.cur_mp = p.mp ?? s.max_mp;
   // attr 29/30 are not stats but modifiers of a per-skill base (Hero::getFinMPCost / getFinSkillCooldown)
   delete s.mp_cost; delete s.skill_cd;

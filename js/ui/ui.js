@@ -8,7 +8,7 @@ import { itemName, itemIcon, itemQuality, itemRecord, attrText, sellPrice, EQUIP
 import { Lua } from '../engine/lua.js';
 import { Cloud } from '../game/cloud.js';
 import { groupsOrdered, skillLevel, canLearn, learn, resetSkills, skillDesc, combatSlots, adventureSkill, pointsSpent, learnedInGroup, COMBAT_GROUPS } from '../game/skills.js';
-import { AFFIX_NAMES } from '../game/combat.js';
+import { AFFIX_NAMES, cooldownLeft } from '../game/combat.js';
 import { story } from '../game/story.js';
 const skillIcon = r => `assets/img/icon/skill-${String(r.IconID || r.ID).padStart(6, '0')}.webp`;
 
@@ -165,14 +165,13 @@ export class UI {
   }
   tick(t) {
     if (!this.hq || !t) return;
-    const cd = t.potCD || { red: 0, blue: 0 };
-    this.hq.redcd.style.setProperty('--cd', (cd.red / 2 * 100) + '%');
-    this.hq.bluecd.style.setProperty('--cd', (cd.blue / 2 * 100) + '%');
+    const cd = t.combat?.bottleCD || [0, 0];
+    this.hq.redcd.style.setProperty('--cd', (cd[0] / 2 * 100) + '%');
+    this.hq.bluecd.style.setProperty('--cd', (cd[1] / 2 * 100) + '%');
     const h0 = t.hero; if (!h0 || !this.skillBtns) return;
-    const now = t.combat.now;
     for (const b of this.skillBtns) {
-      const end = h0.skillCD?.[b.id] || 0, mx = h0.skillCDmax?.[b.id] || 1;
-      const k = end > now ? (end - now) / mx : 0;
+      const c = cooldownLeft(b.id);
+      const k = c.left > 0 ? c.left / c.total : 0;
       b.cd.style.setProperty('--cd', (k * 100) + '%');
       b.el.classList.toggle('nomp', (P.data.mp || 0) < b.cost);
     }

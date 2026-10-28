@@ -10,7 +10,9 @@ import { P, stats, addExp, addItem, save, fullHeal } from './profile.js';
 import { makeAny, rollDropSet, resolveDrop, itemName, itemIcon, itemQuality, itemRecord, QUALITY_COLORS } from './items.js';
 import { Combat, AFFIX_NAMES } from './combat.js';
 import { story } from './story.js';
-import { heroPassives, buffMods, adventureSkill, invalidatePassives } from './skills.js';
+import { adventureSkill } from './skills.js';
+import { U, GC } from './native/core.js';
+import { Ctx, bindHero, bumpStats, bottleLimit, finMPCost } from './native/bridge.js';
 import { Traps } from './traps.js';
 import { Ornaments, loadOrna, loadTowerFx, towerFx, drawCCB, ccbAssets } from './ornaments.js';
 import { pickDiary } from './diary.js';
@@ -62,6 +64,7 @@ export class Tower {
     this.rng = new RNG((Date.now() ^ (mapId * 7919)) >>> 0);
     this.units = []; this.objects = []; this.fx = []; this.fight = null; this.hero = null; this.dead = false;
     this.combat = new Combat(this);
+    Ctx.tower = this; Ctx.mapRow = row; Ctx.resistMod = 0; bumpStats();
     this.hard = !!this.g.hardRun && !Modes.inLab(); this.lab = Modes.inLab();
     this.traps = new Traps(this);
     this.tileset = String(row.Image || 1);
@@ -96,6 +99,7 @@ export class Tower {
     await this.spawnHero();
     await Promise.all(this.units.filter(u => !u.isHero).map(u => this.loadMonsterActor(u)));
     for (const u of this.units) if (!u.isHero) this.combat.setupMonster(u);
+    this.arriveFloor();
     this.reveal(this.hero.x, this.hero.y);
     this.camX = this.hero.wx; this.camY = this.hero.wy;
     if (this.pet) { this.pet.unit.wx = this.hero.wx - 70; this.pet.unit.wy = this.hero.wy + 15; }
@@ -270,9 +274,11 @@ export class Tower {
   addMonster(id, rank, x, y, level) {
     const rec = DB.monster.get(id);
     // rate: GameMap::genRandomMap -> 1 for normal maps (server-side bonus for lv>=21 maps is not available offline)
-    let st = monsterStats(rec, level ?? this.level, rank, +this.row.ResInc || 0, 1);
+    // MapTemplate.ResInc is added to the PLAYER's resistances (MyPlayer::getFinXResist), not to monsters
+    let st = monsterStats(rec, level ?? this.level, rank, 0, 1);
     if (this.hard) st = Modes.hardScale(st);   // NON-ORIGINAL: web hard mode (original hard rate came from the server)
     const u = { id, rec, rank, x, y, st, hp: st.max_hp, alive: true, isHero: false, dir: 3, flip: this.rng.chance(0.5), wx: x * T + 50, wy: -(y * T + 50) - 20, aware: false, alpha: 1 };
+    u.mp = st.max_mp; u.onDie = () => this.monsterDie(u);
     this.units.push(u);
     return u;
   }
@@ -294,6 +300,7 @@ export class Tower {
     const [x, y] = this.born;
     this.hero = { isHero: true, x, y, wx: x * T + 50, wy: -(y * T + 50) - 20, actor: new SpineActor(sk), dir: 2, flip: false, path: null, alive: true, alpha: 1 };
     this.hero.actor.state.data.defaultMix = 0;
+    bindHero(this.hero); this.hero.onDie = () => this.heroDie();
     this.units.push(this.hero);
     this.heroIdle();
   }
@@ -342,7 +349,7 @@ export class Tower {
   havoc() {
     const m = this.fight?.mon; if (!m || !m.alive) return;
     const mhp = this.combat.stats(m).max_hp;
-    this.combat.rawHurt(m, Math.max(1, Math.round(mhp * 0.3)), this.hero);
+    this.combat.rawHurt(m, Math.max(1, Math.round(mhp * 0.3)), this.hero);   // TODO P1: item UseEffect 7 not reversed
     Audio2.play('powerful-1'); this.ui.enemy(m);
   }
 
@@ -365,8 +372,9 @@ export class Tower {
     const mon = this.unitAt(tx, ty) || this.unitAt(tx, Math.floor((-w.y + 40) / T)); // allow tapping a body that overlaps tile above
     if (this.fight) {
       if (mon && mon === this.fight.mon) return;
-      // flee
-      this.endFight('flee');
+      // AttackBehavior::msg_C_ESCAPE_BATTLE: 2 s escape (the monster keeps hitting), then the monster fully recovers
+      this.combat.escape();
+      return;
     }
     if (mon) { this.goTo(mon.x, mon.y, { attack: mon }); return; }
     const obj = this.objAt(tx, ty);
@@ -427,6 +435,7 @@ export class Tower {
 
   arrive() {
     const h = this.hero; const it = h.intent || {}; h.intent = null;
+    if (it.cb) { it.cb(); return; }
     if (it.attack && it.attack.alive) { this.face(h, it.attack.x, it.attack.y); this.startFight(it.attack); return; }
     if (it.use) { this.face(h, it.use.x, it.use.y); this.useObject(it.use); return; }
     if (it.stairs) { this.ui.confirm(`Lên tầng tiếp theo?`, () => this.nextFloor()); return; }
@@ -495,128 +504,69 @@ export class Tower {
     }
     this.ui.hud(this);
   }
-  // ---------------------------------------------------------------- fights
+  // ---------------------------------------------------------------- fights (native AttackBehavior in combat.js)
   startFight(mon) {
     if (this.fight && this.fight.mon === mon) return;
+    if (this.combat.inBattle()) return;
     const h = this.hero;
     this.face(h, mon.x, mon.y);
     mon.flip = mon.x > h.x ? true : mon.x < h.x ? false : mon.flip;
     mon.aware = true;
-    this.fight = { mon, heroT: 0.25, monT: 0.7, time: 0 };
-    h.path = null;
+    this.fight = { mon, time: 0 };
+    h.path = null; h.dir = 3;
     this.ui.enemy(mon);
-    this.combat.fightStart(mon);
-    this.pet?.fightStart(mon);
-    this.heroIdle();
     story('battle begin', { mon_id: mon.id });
+    this.combat.startBattle(mon);
   }
-  endFight(result) {
-    const f = this.fight; if (!f) return;
-    this.fight = null;
-    this.combat.fightEnd(f.mon);
-    story('battle end', { result: result === 'win' ? 0 : result === 'die' ? 1 : 2, mon_id: f.mon.id });
+  // AttackBehavior::end -> notifyLeaveBattle
+  onBattleEnd(mon, result) {
+    const f = this.fight; this.fight = null;
+    story('battle end', { result: result === 'win' ? 0 : result === 'die' ? 1 : 2, mon_id: mon?.id });
     this.ui.enemy(null);
     if (this.hero.alive) this.heroIdle(true);
-    if (f.mon.alive && f.mon.actor) { f.mon.actor.cur = null; f.mon.actor.play('stand-1-3', true); }
+    if (mon?.alive && mon.actor) { mon.actor.cur = null; mon.actor.play('stand-1-3', true); }
+    this.ui.hud(this);
   }
-  // 100 ATK SPD = one attack / 2 s (Lua doc of attack_speed). No 0.2 s cap: none found in native.
+  // kept for callers outside the battle flow
+  endFight(result) { if (this.combat.inBattle()) this.combat.ab.end(); else if (this.fight) this.onBattleEnd(this.fight.mon, result); }
+  // AttackBehavior state 7: the attacker moves into the dead target's tile, then the battle ends (win)
+  walkInto(att, tgt, cb) {
+    const h = this.hero;
+    if (att !== h || !this.grid.isFloor(tgt.x, tgt.y) || this.objAt(tgt.x, tgt.y)) { cb(); return; }
+    h.path = [[tgt.x, tgt.y]]; h.intent = { cb };
+  }
+  // 100 ATK SPD = one attack / 2 s (attack animations are 2 s long and play at fin_atk_speed * act_rate / 100)
   attackInterval(st) { const v = st.fin_atk_speed ?? 100; return v > 0 ? 2.0 / (v / 100) : Infinity; }
   idleUnit(u) { if (u.isHero) { if (u.alive) this.heroIdle(true); } else if (u.alive && u.actor) { u.actor.cur = null; u.actor.play('stand-1-3', true); } }
-
-  updateFight(dt) {
-    const f = this.fight; if (!f) return;
-    const h = this.hero, m = f.mon, C = this.combat;
-    f.time += dt;
-    const hm = buffMods(h, C.now), mm = buffMods(m, C.now);
-    if (!hm.froze && !hm.faint) f.heroT -= dt;
-    if (!mm.froze && !mm.faint) f.monT -= dt;
-    if (f.heroT <= 0 && h.alive && m.alive) {
-      const ps = C.stats(h);
-      const iv = this.attackInterval(ps);
-      f.heroT = iv;
-      const st = weaponStance(P.data);
-      const anim = (st === 2 || st === 3) ? 'attack-2-3' : 'attack-1-3';
-      h.dir = 3;
-      const dur = h.actor.duration(anim) || 0.6;
-      const speed = Math.max(1, dur / (iv * 0.9));
-      const silent = h.actor.hasSoundEvents(anim);
-      // damage lands on the animation's own "hit" event (fallback timer if it has none)
-      let landed = false;
-      const land = () => {
-        if (landed) return; landed = true;
-        if (this.fight?.mon !== m) return;
-        C.normalAttack(h, m, { silent });
-        const dbl = heroPassives().double;
-        if (dbl && m.alive && Math.random() * 100 < dbl) C.wait(0.18).then(() => { if (this.fight?.mon === m) C.normalAttack(h, m, { dy: 40 }); });
-        this.ui.hud(this);
-      };
-      h.actor.cur = null;
-      const e = h.actor.play(anim, false, () => { if (h.alive && this.fight) this.heroIdle(true); }, land);
-      if (e) e.timeScale = speed;
-      const ht = h.actor.hitTime(anim);
-      C.wait(ht != null ? ht / speed + 0.12 : Math.min(dur / speed * 0.5, iv * 0.6)).then(land);
-    }
-    if (f.monT <= 0 && m.alive && h.alive) {
-      const ms = C.stats(m);
-      const iv = this.attackInterval(ms);
-      f.monT = iv;
-      const usedSkill = C.monsterTurn(m);
-      if (!usedSkill) {
-        const dur = m.actor?.duration('attack-1-3') || 0.6;
-        const speed = Math.max(1, dur / (iv * 0.9));
-        const times = Math.max(1, m.st.atk_times || 1);
-        const silent = !!m.actor?.hasSoundEvents('attack-1-3');
-        let hits = 0;
-        const land = () => {
-          if (hits >= times) return; const i = hits++;
-          if (this.fight?.mon === m) { C.normalAttack(m, h, { dy: i * 30, silent }); this.ui.hud(this); }
-        };
-        if (m.actor) {
-          m.actor.cur = null;
-          const e = m.actor.play('attack-1-3', false, () => this.idleUnit(m), land);
-          if (e) e.timeScale = speed;
-        }
-        const ht = m.actor?.hitTime('attack-1-3');
-        const t0 = ht != null ? ht / speed + 0.12 : Math.min(dur / speed * 0.5, iv * 0.6);
-        for (let i = 0; i < times; i++) C.wait(t0 + i * 0.15).then(() => { if (hits <= i) land(); });
-      } else if (m.actor && !m.actor.cur?.startsWith('skill')) {
-        const sk = ['skill-1-3', 'skill-2-3', 'attack-1-3'].find(n => m.actor.has(n));
-        if (sk) { m.actor.cur = null; m.actor.play(sk, false, () => this.idleUnit(m)); }
-      }
-    }
-  }
   burst(u, elem = 0) {
     const col = [[1, 1, 1], [1, .55, .2], [.5, .85, 1], [.85, .5, 1], [.55, .9, .35]][elem] || [1, 1, 1];
     this.fx.push({ kind: 'burst', x: u.wx, y: u.wy + 70, t: 0, life: 0.5, col });
   }
-  killMonster(m) {
-    m.alive = false; m.hp = 0; m.dieT = 0;
-    Audio2.play(m.rec.DeathSound);
-    const ps = stats();
-    const p = P.data;
+  // MyPlayer::onKillUnit (SOURCE-EXACT exp / gold / return power; drops still use the web roller -> TODO P1)
+  rewardKill(m, kmode = 0) {
+    const p = P.data, h = this.hero, f = U.fin(h);
     p.stats.kills = (p.stats.kills || 0) + 1;
-    const exp = Math.round(m.st.exp * (1 + (ps.exp_bonus || 0) / 100));
-    const ups = addExp(exp);
-    this.floatText(m.wx, m.wy + 150, `+${exp} EXP`, '#9cff6b', 0.9);
-    this.giveGold(Math.round(m.st.gold * (1 + (ps.gold_bonus || 0) / 100) * (0.8 + Math.random() * 0.4)), m.wx, m.wy);
-    if (ps.kill_hp) p.hp = Math.min(ps.max_hp, p.hp + ps.kill_hp);
-    if (ps.kill_hp_pct) p.hp = Math.min(ps.max_hp, p.hp + Math.round(ps.max_hp * ps.kill_hp_pct / 100));
-    if (ps.kill_mp) p.mp = Math.min(ps.max_mp, p.mp + ps.kill_mp);
-    const sp = heroPassives().specials;
-    if (sp[110101]) this.combat.heal(this.hero, ps.max_hp * (+sp[110101].p1 || 0) / 100);
-    p.power = Math.min(100, (p.power || 0) + [0, 6, 15, 30, 60][Math.min(4, m.rank)]);
-    Daily.progress(8, 1); if (m.rank >= 2) Daily.progress(7, 1);
-    if (this.pet) { const pd = p.pets?.[this.pet.id]; if (pd) pd.exp = (pd.exp || 0) + Math.max(1, Math.round(m.st.exp * 0.5)); }
-    if (m.rank >= 3 && +this.row.Generate === 1) { const d = 5 + this.rng.int(0, 5); p.diamond = (p.diamond || 0) + d; this.floatText(m.wx, m.wy + 200, `+${d} kim cương`, '#8fe3ff', 0.9); }
-    // drops
+    const expP = (f.exp_bonus + 100) * (m.st.exp | 0), goldP = (f.gold_bonus + 100) * (m.st.gold | 0);
+    const exp = Math.trunc(expP / 100), gold = Math.trunc(goldP / 100);
+    let ups = 0;
+    if (99 < expP) { ups = addExp(exp); this.floatText(m.wx, m.wy + 150, `+${exp} EXP`, '#9cff6b', 0.9); }
+    if (99 < goldP) this.giveGold(gold, m.wx, m.wy);
+    // drops: TODO P1 (MapTemplate::getMonsterDropWithQuality + GameController::calItemIDWithDropSet + own/first drops)
     const field = m.rank === 1 ? 'NormalDrop' : m.rank === 2 ? 'EliteDrop' : m.rank === 3 ? 'UniqueDrop' : 'BossDrop';
-    const rolls = m.rank === 1 ? 1 : m.rank === 2 ? 2 : 3;
-    for (let i = 0; i < rolls; i++) this.dropFrom(this.row[field] || this.row.NormalDrop, m.wx, m.wy);
-    if (m.rank >= 3 && this.row.EliteDrop) this.dropFrom(this.row.EliteDrop, m.wx, m.wy);
-    this.endFight('win');
-    if (ups) { this.ui.levelUp(p.level); Audio2.play('levelup-1'); this.refreshHeroLook(); story('level up', {}); }
+    this.dropFrom(this.row[field] || this.row.NormalDrop, m.wx, m.wy);
+    // return power: rank 2..4 -> +3 / +6 / +10, else +1; capped at 100
+    p.power = Math.min(100, (p.power || 0) + (({ 2: 3, 3: 6, 4: 10 })[m.rank] || 1));
+    Daily.progress(8, 1); if (m.rank >= 2) Daily.progress(7, 1);
+    if (this.pet) { const pd = p.pets?.[this.pet.id]; if (pd) pd.exp = (pd.exp || 0) + Math.max(1, Math.round(m.st.exp * 0.5)); }   // TODO P1 (pet exp)
+    if (ups) { this.ui.levelUp(p.level); Audio2.play('levelup-1'); this.refreshHeroLook(); story('level up', {}); bumpStats(); }
     this.ui.hud(this);
     save();
+  }
+  // Monster::die -> OnDead script, Unit::die (state dead), GameMap::removeMonster
+  monsterDie(m) {
+    m.alive = false; m.removed = true; m.hp = 0; m.dieT = 0;
+    Audio2.play(m.rec.DeathSound);
+    this.ui.enemy(null);
   }
   dropFrom(field, wx, wy) {
     if (!field) return;
@@ -650,8 +600,8 @@ export class Tower {
     this.floatText(wx + 30, wy + 100, `+${n} vàng`, '#ffd34d', 0.85);
   }
   heroDie() {
-    const h = this.hero; h.alive = false; this.dead = true;
-    this.endFight('die');
+    const h = this.hero; if (!h.alive) return; h.alive = false; this.dead = true;
+    if (this.fight && !this.combat.inBattle()) this.onBattleEnd(this.fight.mon, 'die');
     h.actor.cur = null; h.actor.play('death', false, () => h.actor.play('deathloop', true));
     Audio2.playBGM('death-1');
     P.data.stats.deaths = (P.data.stats.deaths || 0) + 1;
@@ -676,25 +626,19 @@ export class Tower {
   }
   // potions
   usePotion(kind) {
-    const p = P.data, s = stats();
     if (!this.hero?.alive) return;
-    this.potCD ||= { red: 0, blue: 0 };
-    if (this.potCD[kind] > 0) { this.ui.toast(S('204')); return; }
-    if (kind === 'red') {
-      if (p.red <= 0) { this.ui.toast(S('202')); return; }
-      if (p.hp >= s.max_hp) { this.ui.toast(S('205')); return; }
-      p.red--; this.combat.heal(this.hero, s.max_hp * 0.5);
-      const sp = heroPassives().specials; if (sp[104101] && this.fight) this.combat.setMp(this.hero, p.mp + s.max_mp * (+sp[104101].p1 || 0) / 100);
-    } else {
-      if (p.blue <= 0) { this.ui.toast(S('202')); return; }
-      if (p.mp >= s.max_mp) { this.ui.toast(S('205')); return; }
-      p.blue--; const v = Math.round(s.max_mp * 0.5); p.mp = Math.min(s.max_mp, p.mp + v);
-      this.floatText(this.hero.wx, this.hero.wy + 150, `+${v} MP`, '#6ab8ff');
-      const sp = heroPassives().specials; if (sp[104101] && this.fight) this.combat.heal(this.hero, s.max_hp * (+sp[104101].p1 || 0) / 100);
-    }
-    this.potCD[kind] = 2;
+    const code = this.combat.useBottle(kind === 'red' ? 0 : 1);   // GameController::feedbackUseBottle
+    if (code === 0xcc) { this.ui.toast(S('204')); return; }
+    if (code === 0xca) { this.ui.toast(S('202')); return; }
+    if (code === 0xcb) { this.ui.toast(S('205')); return; }
     Audio2.play('ui-021');
     this.ui.hud(this);
+  }
+  // MyPlayer::onArriveFloor: forEachEffect(onArriveFloor) + item buffs cleared on MapConType 0/1/5
+  arriveFloor() {
+    const h = this.hero; if (!h) return;
+    U.forEachEffect(h, e => { e.onArriveFloor(h, this.floor, this.mapId); });
+    const c = +this.row.Content; if (c === 0 || c === 1 || c === 5) P.data.itemBuffs = [];
   }
 
   async nextFloor() {
@@ -707,15 +651,6 @@ export class Tower {
     const petExp = this.pet?.floorExp() || 0;
     await this.g.enterTower(next);
     if (petExp) { const ups = addExp(petExp); this.ui.toast(`Thú cưng tò mò: +${petExp} EXP`); if (ups) this.ui.levelUp(P.data.level); }
-    // Survival Instincts (101000): heal p1% HP and gain p2 HP/MP potions on each new floor
-    const sp = heroPassives().specials[101000];
-    const t2 = this.g.tower;
-    if (sp && t2 && t2 !== this) {
-      const p = P.data, s = stats();
-      t2.combat.heal(t2.hero, s.max_hp * (+sp.p1 || 0) / 100);
-      const n = +sp.p2 || 0; p.red = Math.min(this.g.maxPot('red'), p.red + n); p.blue = Math.min(this.g.maxPot('blue'), p.blue + n);
-      this.ui.hud(t2);
-    }
   }
 
   floatText(wx, wy, text, color, scale = 1) { this.ui.float(this, wx, wy, text, color, scale); }
@@ -726,7 +661,7 @@ export class Tower {
     this.time += dt;
     const h = this.hero; if (!h) return;
     this.combat.update(dt);
-    if (this.potCD) { this.potCD.red = Math.max(0, this.potCD.red - dt); this.potCD.blue = Math.max(0, this.potCD.blue - dt); }
+    Ctx.frame++;
     // hero movement
     if (!h.path || !h.path.length) h.carry = 0;
     if (h.path && h.path.length && h.alive) {
@@ -750,7 +685,7 @@ export class Tower {
           if (this.pass && !this.nearPassFired && Math.abs(h.x - this.pass[0]) + Math.abs(h.y - this.pass[1]) <= 2) { this.nearPassFired = true; story('near pass', {}); }
           // ambush: an aware monster adjacent starts a fight
           const adj = this.units.find(u => u.alive && !u.isHero && u.seen && Math.abs(u.x - h.x) + Math.abs(u.y - h.y) === 1 && (u.rank >= 2 || u === h.intent?.attack || Math.random() < 0.5));
-          if (adj && !(h.intent && h.intent.attack === adj && h.path.length)) {
+          if (adj && !h.intent?.cb && !this.fight && !(h.intent && h.intent.attack === adj && h.path.length)) {
             if (h.intent?.attack !== adj || !h.path.length) { h.path = null; h.intent = null; this.startFight(adj); }
           }
           if (h.path && !h.path.length) { h.path = null; this.arrive(); }
@@ -758,13 +693,13 @@ export class Tower {
         } else { h.wx += dx / d * sp; h.wy += dy / d * sp; }
       }
     }
-    this.updateFight(dt);
+    if (this.fight) this.fight.time += dt;
     this.traps.update(dt);
     if (this.pet) { this.pet.follow(h, dt); this.pet.update(dt, this.fight); this.pet.unit.actor?.update(dt); }
     for (const u of this.units) {
       if (u.hitT) u.hitT = Math.max(0, u.hitT - dt);
       if (!u.alive && !u.isHero) { u.dieT += dt; u.alpha = Math.max(0, 1 - u.dieT / 0.8); }
-      if (u.actor && (u.alive || u.alpha > 0 || u.isHero)) u.actor.update(dt);
+      if (u.actor && (u.alive || u.alpha > 0 || u.isHero)) u.actor.update(U.isAbnormal(u, 2) ? 0 : dt);   // froze: animation paused
     }
     this.units = this.units.filter(u => u.isHero || u.alive || u.alpha > 0);
     for (const o of this.objects) if (o.open) o.t = (o.t || 0) + dt;

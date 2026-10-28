@@ -1,16 +1,18 @@
-// Combat runtime: normal attacks (CalAttackDamage from formular.lua), skill effect interpreter
-// (effect lists from skill.lua), buffs, monster AI (monsterai.lua) and elite affixes.
+// Combat runtime on top of the SOURCE-EXACT native core (js/game/native/*):
+//   AttackBehavior (enterBattle / hit event / anim complete / deathClearing / escape / end),
+//   MyPlayer::useSkill + checkUseSkill + cooldowns, GameController::feedbackUseBottle, passives
+//   (MyPlayer::resetPassiveSkillEffect), Monster::onEnterBattle and MyPlayer::onKillUnit (exp/gold/return power).
+// Everything visual goes through the View bridge implemented here.
 import { DB, S } from '../engine/db.js';
-import { Lua } from '../engine/lua.js';
 import { Audio2 } from '../engine/audio.js';
-import { P, stats } from './profile.js';
-import { applyBuffLayer, perHitAttack, heroFinMPCost, heroFinCooldown } from './stats.js';
-import { skillEffects, heroPassives, addBuff, activeBuffs, buffMods, skillLevel, combatSlots, pendingUse, ELEM_COLOR, invalidatePassives } from './skills.js';
+import { P } from './profile.js';
+import { weaponStance } from './stats.js';
+import { combatSlots, adventureSkill, ELEM_COLOR } from './skills.js';
+import { f32, trunc, U, GC, View, Script, newInfo, sumDmg } from './native/core.js';
+import { useSkill, parseEffects } from './native/effects.js';
+import { heroUnit, finMPCost, finCooldown, finSkillLevel, skillCondition, resetBattle, bumpStats } from './native/bridge.js';
 
-const ELEM_RES = [null, 'fire_res', 'cold_res', 'light_res', 'poison_res'];
-const ELEM_ATK = ['phy', 'fire_atk', 'cold_atk', 'light_atk', 'poison_atk'];
-const ELEM_KEY = ['physics', 'fire', 'cold', 'light', 'poison'];
-// Elite affixes: skill ids 200000..200032 (group 99 in skill.csv). Names from the Chinese marks.
+// names of the monster template "Buff" skills (UI tag only)
 export const AFFIX_NAMES = {
   200000: 'Kiên định', 200001: 'Kháng phép', 200002: 'Nhanh nhẹn', 200003: 'Linh hoạt', 200004: 'Cường sinh', 200005: 'Gai góc', 200006: 'Phản xạ',
   200007: 'Hút máu', 200008: 'Hồi phục', 200009: 'Liều lĩnh', 200010: 'Cuồng bạo', 200011: 'Phẫn nộ', 200012: 'Cuồng nhiệt', 200013: 'Tập trung',
@@ -18,371 +20,341 @@ export const AFFIX_NAMES = {
   200020: 'Kim chung tráo', 200021: 'Phản đòn', 200022: 'Tra tấn', 200023: 'Trấn áp', 200024: 'Phán xét', 200025: 'Khô kiệt', 200026: 'Uy hiếp',
   200027: 'Hộ thuẫn', 200028: 'Đốt mana', 200029: 'Mãnh kích', 200030: 'Đóng băng', 200031: 'Chúc phúc', 200032: 'Nguyền rủa',
 };
+const RETURN_POWER = { 2: 3, 3: 6, 4: 10 };   // DAT_00efeedc (rank 2..4), other ranks +1
 
-// ---------------- equipment specialization runtime (EquipEffect_<id> classes in libMyGame.so)
-// Only reversed classes are implemented; every other spec id is stored on the item but has NO runtime effect yet (TODO).
-export function heroSpecs() {
-  const out = [];
-  for (const it of Object.values(P.data?.equipped || {})) for (const sp of it?.spec || []) out.push(sp);
-  return out;
+// ---------------------------------------------------------------- passives (MyPlayer::resetPassiveSkillEffect)
+export function resetPassives() {
+  const h = heroUnit(); U.init(h);
+  U.removeAllSkillBuffs(h, false, true);
+  for (const id in P.data?.skills || {}) {
+    const r = DB.skill.get(+id); if (!r || +r.Type !== 3 || !(P.data.skills[id] > 0)) continue;
+    useSkill(+id, finSkillLevel(+id), h, null);
+    h.n.chain.update(0);
+  }
+  bumpStats();
 }
-const specState = {};
-// beforeDamageCalculation(attacker, target, ..., DamageInfo{mode})
-function specBefore(C, src, tgt, mode) {
-  for (const sp of heroSpecs()) {
-    // EquipEffect_221 (DK Cobra Stick): mode==0 and target curHP >= target finMaxHP -> arm
-    if (sp.id === 221 && mode === 0 && C.hp(tgt) >= C.stats(tgt).max_hp) specState[221] = true;
+// ---------------------------------------------------------------- cooldowns (Cooldown: rest = total - passed)
+function cdOf(id) { const n = U.init(heroUnit()).n; n.cds ||= {}; return n.cds[id] ||= { t: 0, p: 0 }; }
+export function isCooling(id) { const c = cdOf(id); return 0 < c.t && c.p < c.t; }
+export function cooldownLeft(id) { const c = cdOf(id); return isCooling(id) ? { left: c.t - c.p, total: c.t } : { left: 0, total: c.t || 1 }; }
+function beginCooldown(id, t) { const c = cdOf(id); c.t = f32(t); c.p = 0; }
+function updateCooldowns(dt) { const n = U.init(heroUnit()).n; for (const k in n.cds || {}) { const c = n.cds[k]; c.p = c.p + dt <= c.t ? f32(c.p + dt) : c.t; } }
+const usingSkills = () => [...combatSlots().filter(Boolean), adventureSkill()].filter(Boolean);
+
+// ---------------------------------------------------------------- AttackBehavior
+// states: 1 approach, 3 battle, 5 escaping, 7 attacker won (walks into the tile), 8 won, 4 attacker died, 6 escaped
+class AttackBehavior {
+  constructor(C, att, tgt) { this.C = C; this.att = att; this.tgt = tgt; this.state = 0; this.info = new Map(); this.hits = 0; this.t0 = C.now; this.timer = null; }
+  other(u) { return u === this.att ? this.tgt : u === this.tgt ? this.att : null; }
+  init() {
+    this.state = 1; this.t0 = this.C.now;
+    U.init(this.att); this.att.n.fighting = true; this.att.n.enemy = this.tgt;   // getEnemy / isInFighting: attacker's chain only
+    resetBattle();
+    if (U.isHero(this.att) && isNearDeath(this.att)) Audio2.play('dying-1');
+    this.enterBattle();   // NOTE: the native approach walk (state 1, half a tile) is visual only and skipped
+  }
+  enterBattle() {
+    const a = this.att, t = this.tgt;
+    this.state = 3;
+    U.onEnterBattle(a, t); this.C.monsterEnterBattle(a, t);
+    U.onEnterBattle(t, a); this.C.monsterEnterBattle(t, a);
+    this.info.set(a, U.calAttackDamage(a, t, 0, true, false, 1));
+    this.info.set(t, U.calAttackDamage(t, a, 0, false, false, 1));
+    this.C.playAttack(a, 4.0);
+    this.C.playAttack(t, f32(f32(U.actionRate(t) * U.fin(t).fin_atk_speed) / 100));
+  }
+  startNewAttack(u) {
+    const o = this.other(u); if (!o) return;
+    if (u === this.att && !(this.state === 3 || this.state === 5 || this.state === 7)) { this.end(); return; }
+    const prev = this.info.get(u) || newInfo();
+    this.info.set(u, U.calAttackDamage(u, o, 0, false, false, 1));
+    if (!U.onAttackingEnemy(u, o)) this.C.playAttack(u, f32(f32(U.actionRate(u) * U.fin(u).fin_atk_speed) / 100));
+    if (U.isMonster(u)) {
+      if (Script.monsterAIAction(u, o, prev, this.C.now - this.t0)) this.info.set(u, newInfo());
+    }
+  }
+  onHit(u) {
+    const o = this.other(u); if (!o || !(this.state === 5 || this.state === 3)) return;
+    this.hits++;
+    const stored = this.info.get(u) || newInfo();
+    let info = stored;
+    if (0 < stored.n) { info = U.calAttackDamage(u, o, 0, false, false, 1); info.n = stored.n; }
+    stored.n++;
+    const flag = { v: false }; let total = 0;
+    if (info.hit) {
+      U.beDamaging(o, info, flag);
+      total = sumDmg(info);
+      if (total !== 0) U.beHurt(o, 0, total);
+    }
+    View.attackHit(u, o, info, flag.v, total);
+    if (U.isHero(o)) View.attrChanged(o);
+    if (U.isHero(u) && info.hit) { const f = U.fin(u), hp = f.hit_hp, mp = f.hit_mp; if (0 < hp || 0 < mp) GC.dealRecoverUnit(u, 0, hp, mp, true); }
+    if (info.hit) { U.onHitEnemy(u, o, total, info); if (0 < total) U.onDamagedByEnemy(o, u, info, total); }
+    this.deathClearing(info);
+  }
+  deathClearing(info) {
+    if (this.state === 4 || this.state === 7 || this.state === 8 || this.done) return;
+    if (U.isDead(this.att)) { GC.dealKillUnit(this.tgt, this.att, 0); this.state = 4; this.end(); return; }
+    if (U.isDead(this.tgt) && !this.tgt.removed) {
+      if (U.isHero(this.att)) {
+        const f = U.fin(this.att), hp = f.kill_hp, mp = f.kill_mp;
+        if (0 < hp || 0 < mp) GC.dealRecoverUnit(this.att, 0, hp, mp, true);
+        if (info && info.crit) View.globalEffect(1);
+      }
+      GC.dealKillUnit(this.att, this.tgt, 0);
+      this.state = 7;
+      this.C.winWalk(this);
+    }
+  }
+  escape() {   // msg_C_ESCAPE_BATTLE
+    if (this.state !== 3 || U.isDead(this.att)) return;
+    this.state = 5;
+    this.C.playEscape(this.att);
+    this.timer = this.C.after(2, () => {
+      if (this.done) return;
+      if (!U.isDead(this.att)) {
+        this.state = 6;
+        U.setHp(this.tgt, U.fin(this.tgt).max_hp);   // the monster recovers completely
+        this.C.idle(this.tgt);
+        this.end();
+      }
+    });
+  }
+  end() {
+    if (this.done) return; this.done = true;
+    const res = this.state === 4 ? 1 : this.state === 8 ? 0 : 2;
+    if (this.timer) this.timer.cancel = true;
+    U.onLeaveBattle(this.att, this.tgt, res);
+    U.onLeaveBattle(this.tgt, this.att, res);
+    this.att.n.chain.cancelAll(); U.init(this.tgt).n.chain.cancelAll();
+    this.att.n.fighting = false; this.att.n.enemy = null;
+    this.C.onBattleEnd(this, res);
   }
 }
-// onHitEnemy(attacker, target, ...)
-function specOnHit(C, src, tgt) {
-  // EquipEffect_221: armed -> clear, target gets SkillShortEffect(2.0s, SkillFaint)
-  if (specState[221]) { specState[221] = false; addBuff(tgt, { type: 'faint', duration: 2 }, C.now); C.t.floatText(tgt.wx, tgt.wy + 200, 'Choáng', '#9fe3ff', 0.9); }
-}
+const isNearDeath = u => { const hp = U.hp(u); return 0 < hp && hp <= trunc(U.fin(u).max_hp / 5); };
 
+// ---------------------------------------------------------------- Combat (per tower)
 export class Combat {
-  constructor(tower) { this.t = tower; this.now = 0; this.timers = []; }
+  constructor(tower) { this.t = tower; this.now = 0; this.timers = []; this.ab = null; this.bottleCD = [0, 0]; installView(this); }
   get hero() { return this.t.hero; }
-  // ---------------- accessors (hero hp/mp live in the profile)
-  hp(u) { return u.isHero ? P.data.hp : u.hp; }
-  mp(u) { return u.isHero ? P.data.mp : (u.mp ?? u.st.max_mp); }
-  setHp(u, v) { const mx = this.stats(u).max_hp; v = Math.max(0, Math.min(mx, v)); if (u.isHero) P.data.hp = v; else u.hp = v; }
-  setMp(u, v) { const mx = this.stats(u).max_mp; v = Math.max(0, Math.min(mx, v)); if (u.isHero) P.data.mp = v; else u.mp = v; }
-  stats(u) {
-    if (u.isHero) return stats();
-    let s = { ...u.st };
-    // Unit::calAttribWithBuffs (one pass over permanent + active effects)
-    const effs = [...(u.permAttr || []), ...activeBuffs(u, this.now).filter(b => b.type === 'attrib benefit' || b.type === 'attrib gain')];
-    if (effs.length) s = applyBuffLayer(s, effs);
-    // Monster::getFinMin/MaxAttack + 4 elemental attack getters: per-hit scaling by MonsterTemplate.AtkTimes
-    if (!u.isPet && s.atk_times > 1) for (const k of ['min_atk', 'max_atk', 'fire_atk', 'cold_atk', 'light_atk', 'poison_atk']) s[k] = perHitAttack(s[k], s.atk_times);
-    const sp = buffMods(u, this.now).speed; if (sp) s.fin_atk_speed *= (1 + sp / 100);   // TODO VERIFY (speed-up buff path)
-    return s;
-  }
-  // lua-facing table for a unit
-  lt(u) {
-    const s = this.stats(u);
-    const m = buffMods(u, this.now);
-    return { ...s, cur_hp: this.hp(u), cur_mp: this.mp(u), act_rate: Math.max(0, 1 + m.speed / 100), quality: u.rank || 1, _time: this.t.fight?.time || 0 };
-  }
+  // ---- accessors kept for UI / pets / traps
+  hp(u) { return U.hp(u); }
+  mp(u) { return U.mp(u); }
+  setHp(u, v) { U.setHp(u, v); }
+  setMp(u, v) { U.setMp(u, v); }
+  stats(u) { return U.fin(u); }
+  after(sec, fn) { const t = { at: this.now + sec, fn }; this.timers.push(t); return t; }
+  wait(sec) { return new Promise(res => this.after(sec, res)); }
 
-  // ---------------- elites: random affixes + fixed monster Buff
-  setupMonster(m) {
-    m.permAttr = []; m.perm = []; m.affixes = [];
-    const add = id => {
-      const effs = skillEffects(id, this.lt(m), this.lt(m), 1);
-      for (const e of effs) {
-        if (!e || !e.type) continue;
-        if ((e.type === 'attrib benefit' || e.type === 'attrib gain') && !e.duration) m.permAttr.push(e);
-        else if (!e.duration && !e.period && ['cause damage change', 'be damage change', 'suck red', 'damage back', 'recover change', 'additional attack', 'speed up'].includes(e.type)) m.buffs = [...(m.buffs || []), { ...e, until: 0 }];
-        else m.perm.push({ id, e });
-      }
-    };
-    if (m.rec.Buff !== '' && m.rec.Buff != null) String(m.rec.Buff).split(';').filter(Boolean).forEach(id => add(+id));
-    const n = m.rank === 2 ? 1 : m.rank >= 3 ? 2 : 0;
-    const pool = [200002, 200003, 200004, 200005, 200007, 200008, 200009, 200010, 200012, 200013, 200014, 200015, 200016, 200017, 200020, 200021, 200027, 200029];
-    for (let i = 0; i < n; i++) { const id = pool[Math.floor(Math.random() * pool.length)]; if (m.affixes.includes(id)) continue; m.affixes.push(id); add(id); }
-    const s = this.stats(m); m.hp = s.max_hp; m.mp = s.max_mp;
-  }
-
-  // ---------------- damage pipeline
-  // kind: 'attack' | 'skill' | 'trap'; parts: [phy, fire, cold, light, poison] (already resisted)
-  applyDamage(src, tgt, parts, kind, opts = {}) {
-    const ms = src ? buffMods(src, this.now) : { cause: {} }, mt = buffMods(tgt, this.now);
-    let total = 0; let mainElem = 0, best = -1;
-    for (let e = 0; e < 5; e++) {
-      let v = parts[e] || 0; if (v <= 0) continue;
-      let k = 1 + ((ms.cause[ELEM_KEY[e]] || 0) + (ms.cause[kind] || 0) + ((src?.isHero || src?.isPet) && this.t.pet ? this.t.pet.elemBonus(e) : 0)) / 100;
-      k *= 1 + ((mt.be[ELEM_KEY[e]] || 0) + (mt.be[kind] || 0)) / 100;
-      v *= Math.max(0, k);
-      if (v > best) { best = v; mainElem = e; }
-      total += v;
-    }
-    // hero passive specials
-    if (src?.isHero) {
-      const sp = heroPassives().specials; const hs = this.stats(src); const ts = this.stats(tgt);
-      const rhp = this.hp(src) / hs.max_hp, thp = this.hp(tgt) / ts.max_hp;
-      if (sp[106000] && rhp > 0.7) total *= 1 + (+sp[106000].p1 || 0) / 100;
-      if (sp[106001] && thp < 0.35) total *= 1 + (+sp[106001].p2 || +sp[106001].p1 || 0) / 100;
-      if (sp[106003] && tgt.rank >= 2) total *= 1 + (+sp[106003].p1 || 0) / 100;
-      if (sp[107101]) total *= 1 + (+sp[107101].p1 || 0) / 100 * (this.mp(src) / hs.max_mp);
-      if (kind === 'skill' && sp[109001]) total *= 1 + (+sp[109001].p1 || 0) / 100;
-      if (this.nextSkillBonus && kind === 'skill') { total *= 1 + this.nextSkillBonus / 100; this.nextSkillBonus = 0; }
-    }
-    if (tgt.isHero) {
-      const sp = heroPassives().specials; const hs = this.stats(tgt);
-      if (sp[106000] && this.hp(tgt) / hs.max_hp < 0.35) total *= 1 - (+sp[106000].p2 || 0) / 100;
-      if (kind === 'attack' && sp[109100]) total *= 1 - (+sp[109100].p1 || 0) / 100;
-      if (kind === 'skill' && sp[109101]) total *= 1 - (+sp[109101].p1 || 0) / 100;
-      const ps = this.stats(tgt); if (kind === 'attack' && ps.phys_reduce) total *= 1 - Math.min(60, ps.phys_reduce) / 100;
-    }
-    total = Math.max(1, Math.round(total));
-    // shield
-    if (mt.shield) { const ab = Math.min(mt.shield.left, total); mt.shield.left -= ab; total -= ab; if (ab) this.t.floatText(tgt.wx, tgt.wy + 160, `(${ab})`, '#bfe3ff', 0.8); }
-    if (tgt.absorbAll) { tgt.absorbed = (tgt.absorbed || 0) + total; total = 0; }
-    if (total <= 0) return 0;
-    this.setHp(tgt, this.hp(tgt) - total);
-    tgt.hitT = 0.15;
-    const color = tgt.isHero ? (opts.crit ? '#ff6a3a' : '#ff4a4a') : (opts.crit ? '#ffcf3a' : ELEM_COLOR[mainElem]);
-    this.t.floatText(tgt.wx, tgt.wy + 110 + (opts.dy || 0), (tgt.isHero ? '-' : '') + total + (opts.crit ? '!' : ''), color, opts.crit ? 1.45 : kind === 'skill' ? 1.2 : 1);
-    if (src) {
-      // lifesteal / thorns
-      const suck = (ms.suck || 0) + (opts.suck || 0);
-      if (suck > 0 && kind !== 'trap') this.heal(src, total * suck / 100, true);
-      if (mt.back > 0 && kind === 'attack') { const back = Math.round(total * mt.back / 100); if (back > 0) { this.setHp(src, this.hp(src) - back); this.t.floatText(src.wx, src.wy + 130, (src.isHero ? '-' : '') + back, '#ff9a6a', 0.8); } }
-      if (src.isHero && kind === 'attack') {
-        const ps = this.stats(src);
-        if (ps.hit_hp) this.heal(src, ps.hit_hp, true);
-        if (ps.steal_hp) this.heal(src, total * ps.steal_hp / 100, true);
-        if (ps.hit_mp) this.setMp(src, this.mp(src) + ps.hit_mp);
-      }
-      if (tgt.isHero && kind === 'attack' && this.t.pet && src.alive) this.t.pet.onHeroAttacked(src);
-      if (src.isHero && opts.crit && this.t.pet && tgt.alive) this.t.pet.onHeroCrit(tgt);
-      if (tgt.isHero && kind === 'attack') {
-        const ps = this.stats(tgt); const sp = heroPassives().specials;
-        if (ps.thorn) this.rawHurt(src, ps.thorn, tgt);
-        if (sp[103103]) this.rawHurt(src, Math.round(ps.defense * (+sp[103103].p1 || 0) / 100), tgt);
-        if (sp[104102]) this.setMp(tgt, this.mp(tgt) + ps.max_mp * (+sp[104102].p1 || 0) / 100);
-      }
-    }
-    this.t.ui.enemy(this.t.fight?.mon);
-    this.checkDeath(tgt, src);
-    return total;
-  }
-  rawHurt(tgt, v, src) {
-    v = Math.round(v); if (v <= 0 || !tgt) return;
-    this.setHp(tgt, this.hp(tgt) - v); tgt.hitT = 0.12;
-    this.t.floatText(tgt.wx, tgt.wy + 140, (tgt.isHero ? '-' : '') + v, tgt.isHero ? '#ff4a4a' : '#ffb07a', 0.85);
-    this.checkDeath(tgt, src);
-  }
-  heal(u, v, quiet) {
-    v = Math.round(v * (1 + (buffMods(u, this.now).recover || 0) / 100) * (u.isHero ? 1 + (this.stats(u).heal_bonus || 0) / 100 + (+(heroPassives().specials[109102]?.p1) || 0) / 100 : 1));
-    if (v <= 0) return;
-    this.setHp(u, this.hp(u) + v);
-    if (!quiet || v >= 5) this.t.floatText(u.wx, u.wy + 170, '+' + v, '#5aff7a', quiet ? 0.75 : 1);
-  }
-  checkDeath(u, killer) {
-    if (u.isPet) return;
-    if (this.hp(u) > 0) return;
-    if (u.isHero) { if (u.alive) this.t.heroDie(); }
-    else if (u.alive) this.t.killMonster(u);
-  }
-
-  // normal attack (formular.lua CalAttackDamage)
-  normalAttack(src, tgt, opts = {}) {
-    if (!src.alive || !tgt.alive) return;
-    const a = this.lt(src), d = this.lt(tgt);
-    if (opts.perc) for (const k of ['min_atk', 'max_atk', 'fire_atk', 'cold_atk', 'light_atk', 'poison_atk']) a[k] = (a[k] || 0) * opts.perc / 100;
-    // hero passives that modify the swing
-    let ignoreDef = 0;
-    if (src.isHero) {
-      const sp = heroPassives().specials; const lvGap = Math.max(0, d.lv - a.lv);
-      const chance = p => (+p || 0) / (lvGap >= 5 ? 2 : 1);
-      if (sp[104000] && Math.random() * 100 < chance(sp[104000].p1)) ignoreDef = 0.5;
-      if (sp[106002]) { if (this.hp(tgt) / d.max_hp > this.hp(src) / a.max_hp) a.hit += +sp[106002].p1 || 0; else ignoreDef = Math.max(ignoreDef, (+sp[106002].p2 || 0) / 100); }
-      if (sp[106001] && this.hp(tgt) / d.max_hp > 0.8) a.critical += +sp[106001].p1 || 0;
-      if (sp[104002] && Math.random() * 100 < chance(sp[104002].p1)) addBuff(tgt, { type: 'faint', duration: 2 }, this.now);
-      if (sp[104001] && Math.random() * 100 < chance(sp[104001].p1)) { const e = 1 + Math.floor(Math.random() * 4); a[ELEM_ATK[e]] = (a[ELEM_ATK[e]] || 0) + (a.min_atk + a.max_atk) / 2 * 0.15; }
-    }
-    if (ignoreDef) d.defense *= (1 - ignoreDef);
-    if (src.isHero && this.t.pet) d.defense = Math.max(0, d.defense - this.t.pet.ignoreDef());
-    const add = buffMods(src, this.now).addAtk;
-    if (add) { a.min_atk += +add.physics || 0; a.max_atk += +add.physics || 0; a.fire_atk += +add.fire || 0; a.cold_atk += +add.cold || 0; a.light_atk += +add.light || 0; a.poison_atk += +add.poison || 0; }
-    // equipment specialization hooks: beforeDamageCalculation (normal attack)
-    if (src.isHero) specBefore(this, src, tgt, 0);
-    const r = Lua.call('CalAttackDamage', a, d, !!opts.hit, !!opts.crit) || [];
-    const [phy, fire, cold, light, poison, crit] = r;
-    if (phy != null || fire != null) { if (src.isHero) specOnHit(this, src, tgt); }
-    if (phy == null && fire == null) {
-      this.t.floatText(tgt.wx, tgt.wy + 110, 'Trượt', '#cfcfcf', 0.9);
-      if (tgt.isHero && heroPassives().specials[300000]) { }
-      return 0;
-    }
-    // the swing animation already played its own impact sound (spine "sound-1" events); keep the crit sting
-    if (src.isHero) { if (crit) Audio2.play('crithit-' + (1 + (Math.random() * 3 | 0)), 0.6); else if (!opts.silent) Audio2.play('hit-1-' + (1 + (Math.random() * 13 | 0)), 0.6); }
-    else if (!opts.silent) Audio2.play('hit-2-' + (1 + (Math.random() * 4 | 0)), 0.5);
-    // Fighting Instinct: chance to kill instantly after crit
-    if (src.isHero && crit && heroPassives().specials[107102] && tgt.rank < 4) {
-      const p = (+heroPassives().specials[107102].p1 || 0) * (tgt.rank === 2 ? 0.67 : tgt.rank === 3 ? 0.34 : 1);
-      if (Math.random() * 100 < p) { this.t.floatText(tgt.wx, tgt.wy + 200, 'TỬ!', '#ff3030', 1.6); this.setHp(tgt, 0); this.checkDeath(tgt, src); return 0; }
-    }
-    return this.applyDamage(src, tgt, [phy || 0, fire || 0, cold || 0, light || 0, poison || 0], 'attack', { crit, dy: opts.dy });
-  }
-
-  // skill damage: raw value, element; uses defense / resist like the engine
-  // Unit::calSkillDamage (native): atk = max(0, val + hookAtk), def/res = max(0, target stat + hookDef)
-  //   physical: int(CalPhysicalDamage(lvA, atk, def));  element: int(CalEleDmg(atk, max(1,lvA), res, max(1,lvB)))
-  //   then int(CalCriticalDamage(force, dmg, attacker crit, attacker crit dmg))
-  skillDamage(src, tgt, elem, val, opts = {}) {
-    if (!tgt.alive) return 0;
-    const a = this.lt(src), d = this.lt(tgt);
-    const atk = Math.max(0, Math.trunc(+val || 0));
-    // TODO VERIFY: passive 109002 (web-side "ignore def/res") stands in for the native beforeDamageCalculation hooks
-    const ext = src.isHero ? (+(heroPassives().specials[109002]?.p1) || 0) / 100 : 0;
-    let v;
-    if (elem === 0) {
-      const def = Math.max(0, Math.trunc((d.defense || 0) * (1 - ext)));
-      v = Math.trunc((Lua.call('CalPhysicalDamage', a.lv | 0, atk, def) || [0])[0] || 0);
-    } else {
-      const res = Math.max(0, Math.trunc((d[ELEM_RES[elem]] || 0) * (1 - ext)));
-      v = Math.trunc((Lua.call('CalEleDmg', atk, Math.max(1, a.lv | 0), res, Math.max(1, d.lv | 0)) || [0])[0] || 0);
-    }
-    const cr = Lua.call('CalCriticalDamage', !!opts.crit, v, a.critical | 0, a.crit_dam | 0) || [v, false];
-    v = Math.trunc(cr[0] || 0); const crit = !!cr[1];
-    const parts = [0, 0, 0, 0, 0]; parts[elem] = v;
-    return this.applyDamage(src, tgt, parts, 'skill', { crit, suck: opts.suck });
-  }
-
-  // ---------------- effect interpreter
-  wait(sec) { return new Promise(res => this.timers.push({ at: this.now + sec, res })); }
+  // ---- per frame (GameMap::update -> Unit::update for every unit, MyPlayer::update cooldowns / bottle CD)
   update(dt) {
     this.now += dt;
     const due = this.timers.filter(t => t.at <= this.now); this.timers = this.timers.filter(t => t.at > this.now);
-    due.forEach(t => t.res());
-    // periodic effects
-    for (const u of [this.hero, this.t.pet?.unit, ...this.t.units.filter(x => !x.isHero)]) {
-      if (!u?.buffs) continue;
-      for (const b of u.buffs) {
-        if (!b.period || !(b.loopLeft > 0) || b.nextAt > this.now) continue;
-        b.nextAt += +b.period; b.loopLeft--;
-        if (b.loopLeft <= 0) b.until = this.now;
-        this.instant(b, b.casterRef, b.enemyRef);
-      }
-    }
-  }
-  unitFor(sel, caster, enemy) { return sel === 'enemy' ? enemy : caster; }
-  async run(effs, caster, enemy, ctx = {}) {
-    for (const e of effs) {
-      if (!e || !e.type) continue;
-      if (!caster.alive && e.type !== 'delay') return;
-      if (e.type === 'delay') { await this.wait(+e.time || 0); continue; }
-      if (e.period && e.loop) {
-        const tgtU = this.unitFor(e.src, caster, enemy);
-        const b = addBuff(tgtU, { ...e, duration: 0 }, this.now);
-        b.loopLeft = +e.loop; b.nextAt = this.now + (+e.period); b.casterRef = caster; b.enemyRef = enemy; b.until = this.now + (+e.period) * (+e.loop) + 0.1;
-        continue;
-      }
-      this.instant(e, caster, enemy, ctx);
-    }
-  }
-  instant(e, caster, enemy, ctx = {}) {
-    if (!enemy) enemy = caster;
-    const U = sel => this.unitFor(sel, caster, enemy);
-    switch (e.type) {
-      case 'action': {
-        const a = caster.actor; if (!a) break;
-        const name = `skill-${e.idx || 1}-3`;
-        if (a.has(name)) { a.cur = null; a.play(name, false, () => this.t.idleUnit(caster)); }
-        else if (a.has('attack-1-3')) { a.cur = null; a.play('attack-1-3', false, () => this.t.idleUnit(caster)); }
-        break;
-      }
-      case 'body effect': case 'scene effect': case 'fly effect': {
-        const u = U(e.tgt || e.src); if (u) this.t.burst(u, ctx.elem ?? 0);
-        break;
-      }
-      case 'skill damage': {
-        const s = U(e.src), t = U(e.tgt); if (!s || !t) break;
-        this.t.burst(t, +e.elem || 0);
-        this.skillDamage(s, t, +e.elem || 0, +e.val || 0, { crit: !!e.crit });
-        break;
-      }
-      case 'suck damage': {
-        const s = U(e.src), t = U(e.tgt); if (!s || !t) break;
-        this.t.burst(t, +e.elem || 0);
-        this.skillDamage(s, t, +e.elem || 0, +e.val || 0, { suck: +e.suck || 0, crit: !!e.crit });
-        break;
-      }
-      case 'skill hurt': { const t = U(e.tgt); if (t) this.rawHurt(t, +e.val || 0, U(e.src)); break; }
-      case 'skill attack': { const s = U(e.src), t = U(e.tgt); if (s && t) this.normalAttack(s, t, { perc: +e.perc || 100, hit: !!e.hit, crit: !!e.crit }); break; }
-      case 'skill recover': { const u = U(e.src); if (!u) break; if (e.hp) this.heal(u, +e.hp); if (e.mp) { this.setMp(u, this.mp(u) + +e.mp); this.t.floatText(u.wx, u.wy + 190, '+' + Math.round(+e.mp) + ' MP', '#6ab8ff', 0.8); } break; }
-      case 'mp loss': { const u = U(e.tgt); if (u) this.setMp(u, this.mp(u) - (+e.loss || 0)); break; }
-      case 'steal': { if (enemy.isHero || caster.isHero) { if (Math.random() * 100 < (+e.rate || 0) && P.data.red > 0) { P.data.red--; this.t.ui.toast('Bị trộm 1 bình máu!'); } } break; }
-      case 'shield': { const u = U(e.src); if (!u) break; const b = addBuff(u, e, this.now); b.left = +e.val || 0; this.t.floatText(u.wx, u.wy + 200, 'Khiên', '#bfe3ff', 0.9); break; }
-      case 'froze': case 'faint': {
-        const u = U(e.src); if (!u) break;
-        if (u.isHero && (this.stats(u).control_res || 0) > Math.random() * 100) break;
-        addBuff(u, e, this.now); this.t.floatText(u.wx, u.wy + 200, e.type === 'froze' ? 'Đóng băng' : 'Choáng', '#9fe3ff', 0.9);
-        break;
-      }
-      case 'attrib benefit': case 'attrib gain': case 'cause damage change': case 'be damage change': case 'damage back': case 'suck red':
-      case 'speed up': case 'recover change': case 'additional attack': {
-        const u = U(e.src); if (!u) break;
-        addBuff(u, e, this.now);
-        if (u.isHero) invalidatePassives();
-        break;
-      }
-      case 'single skill': this.single(e, caster, enemy); break;
-      default: break; // qte start, double attack (passive) etc.
-    }
-  }
-  single(e, caster, enemy) {
-    const id = +e.id;
-    switch (id) {
-      case 110003: this.nextSkillBonus = +e.p1 || 0; break;
-      case 111000: { // absorb all damage for 5s, return part afterwards
-        caster.absorbAll = true; caster.absorbed = 0;
-        this.wait(5).then(() => { caster.absorbAll = false; const back = Math.round((caster.absorbed || 0) * (+e.p1 || 0) / 100); caster.absorbed = 0; if (back > 0) this.run([{ type: 'skill hurt', src: 'caster', tgt: 'caster', val: back / 5, period: 1, loop: 5 }], caster, enemy); });
-        break;
-      }
-      case 113005: addBuff(caster, { type: 'recover change', perc: 0, duration: e.duration || 5 }, this.now); break;
-      default: break;
-    }
+    for (const t of due) if (!t.cancel) t.fn();
+    updateCooldowns(dt);
+    for (let i = 0; i < 2; i++) if (0 < this.bottleCD[i]) this.bottleCD[i] = Math.max(0, f32(this.bottleCD[i] - dt));
+    const units = [this.hero, this.t.pet?.unit, ...this.t.units.filter(x => !x.isHero && x.alive)].filter(Boolean);
+    for (const u of units) U.update(u, dt);
   }
 
-  // ---------------- skills used by the hero
-  castHero(slotIdx) {
-    const t = this.t, f = t.fight, h = this.hero;
-    const id = combatSlots()[slotIdx]; if (!id) return;
-    const row = DB.skill.get(id); const lv = skillLevel(id);
-    h.skillCD ||= {};
-    if ((h.skillCD[id] || 0) > this.now) { t.ui.toast('Kỹ năng đang hồi'); return; }
-    const hs = this.stats(h);
-    let cost = heroFinMPCost(hs, +row.ManaCost || 0);                         // Hero::getFinMPCost
-    if (heroPassives().specials[109001]) cost = Math.round(cost * 1.25);        // TODO VERIFY (web-side special)
-    if (this.mp(h) < cost) { t.ui.toast('Không đủ MP'); return; }
-    const needsEnemy = !['102005'].includes(String(id)) && !(+row.Group === 19);
-    if (!f && needsEnemy) { t.ui.toast('Chỉ dùng khi đang chiến đấu'); return; }
-    if (buffMods(h, this.now).froze || buffMods(h, this.now).faint) return;
-    this.setMp(h, this.mp(h) - cost);
-    let cd = heroFinCooldown(hs, +row.Cooldown || 0);                           // Hero::getFinSkillCooldown
-    if (heroPassives().specials[109000]) cd *= 1 - (+heroPassives().specials[109000].p1 || 0) / 100;   // TODO VERIFY (web-side special)
-    h.skillCD[id] = this.now + cd; h.skillCDmax ||= {}; h.skillCDmax[id] = cd;
-    const enemy = f?.mon || h;
-    const effs = skillEffects(id, this.lt(h), this.lt(enemy), lv);
+  // ---- monsters
+  setupMonster(m) {
+    U.init(m);
+    m.affixes = [];   // native has no random elite affixes: elite/boss differ by MonsterStat row (+ boss skill 210023)
+    m.hp = U.fin(m).max_hp; m.mp = U.fin(m).max_mp;
+  }
+  // Monster::onEnterBattle: template Buff skills (lv 1) + boss (rank > 3) skill 210023
+  monsterEnterBattle(m, enemy) {
+    if (!U.isMonster(m)) return;
+    const ids = String(m.rec?.Buff ?? '').split(';').filter(x => x !== '').map(Number);
+    for (const id of ids) useSkill(id, 1, m, enemy);
+    if (3 < U.rank(m)) useSkill(210023, 1, m, enemy);
+  }
+
+  // ---- battle
+  startBattle(m) {
+    if (this.ab && !this.ab.done) return;
+    const ab = new AttackBehavior(this, this.hero, m);
+    this.ab = ab; ab.init();
+    if (this.t.pet) this.t.pet.fightStart?.(m);
+  }
+  escape() { if (this.ab && !this.ab.done) this.ab.escape(); }
+  inBattle() { return !!(this.ab && !this.ab.done); }
+  onBattleEnd(ab, res) {
+    if (this.ab === ab) this.ab = null;
+    this.t.onBattleEnd(ab.tgt, res === 0 ? 'win' : res === 1 ? 'die' : 'flee');
+  }
+  winWalk(ab) {   // state 7: the attacker walks into the target tile, then state 8 -> end (win)
+    this.t.walkInto(ab.att, ab.tgt, () => { if (ab.done) return; ab.state = 8; ab.end(); });
+  }
+
+  // ---- animation plumbing (Unit::notifyChangeState / C_UNIT_ANIM_EVENT / C_UNIT_ANIM_COMPLETE)
+  attackAnim(u) { if (u.isHero) { const st = weaponStance(P.data); return (st === 2 || st === 3) ? 'attack-2-3' : 'attack-1-3'; } return 'attack-1-3'; }
+  playAnim(u, name, speed) {
+    const a = u.actor;
+    const done = () => { if (this.ab && !this.ab.done && this.ab.other(u)) this.ab.startNewAttack(u); else this.idle(u); };
+    const hit = n => { if (n === 'hit' && this.ab && !this.ab.done) this.ab.onHit(u); };
+    if (!a) { this.after(2 / Math.max(0.05, speed), () => { hit('hit'); done(); }); return; }
+    a.cur = null;
+    const e = a.play(name, false, done, hit);
+    if (e) {
+      e.timeScale = speed;
+      // NON-ORIGINAL safety: a model whose attack animation has no "hit" event would never deal damage
+      if (a.hitTime(e.animation?.name || name) == null && /^attack/.test(name)) { const d = a.duration(e.animation?.name || name); this.after(d * 0.6 / Math.max(0.05, speed), () => { if (a.state.getCurrent(0) === e) hit('hit'); }); }
+    }
+  }
+  playAttack(u, speed) { if (U.isAbnormal(u, 1)) return; this.playAnim(u, this.attackAnim(u), speed); }
+  playEscape(u) { if (u.actor) { u.actor.cur = null; const e = u.actor.play(u.isHero ? 'run-1-3' : 'stand-1-3', true); if (e) e.timeScale = 3; } }
+  idle(u) { if (u.isHero) { if (u.alive) this.t.heroIdle(true); } else if (u.alive && u.actor) { u.actor.cur = null; u.actor.play('stand-1-3', true); } }
+
+  // ---- hero skills (MyPlayer::useSkill)
+  castHero(slotIdx) { const id = combatSlots()[slotIdx]; if (id) this.useSkill(id); }
+  checkUseSkill(id) {
+    const r = DB.skill.get(+id); if (!r) return 2;
+    if (!(P.data.skills?.[id] > 0)) return 0xf5;
+    if (U.mp(this.hero) < finMPCost(id)) return 0xdd;
+    const type = +r.Type;
+    if (type === 3) return 0xde;
+    if (isCooling(id)) return 0xe0;
+    if (type === 2 && !U.isNormalMap(this.t.mapId)) return 0xdf;
+    if ((+id === 108001 && +this.t.row?.Content === 5) || U.isControlled(this.hero)) return 0xdf;
+    const fighting = this.inBattle();
+    if (type === 1 && fighting) return 0;
+    if (!fighting && type === 2) return 0;
+    return 0xdf;
+  }
+  useSkill(id, target) {
+    const h = this.hero; target ||= this.ab?.tgt || null;
+    let code = this.checkUseSkill(id);
+    if (code === 0) code = U.isDead(h) ? 0xdf : (target && U.isDead(target)) ? 0xf3 : skillCondition(id, h, target);
+    if (code !== 0) { this.t.ui.toast(skillError(code)); return code; }
+    const r = DB.skill.get(+id), type = +r.Type;
+    const lv = finSkillLevel(id), cost = finMPCost(id);
+    if (type === 1) { U.drainMP(h, cost); View.attrChanged(h); useSkill(+id, lv, h, target); }
+    else return this.t.useAdventure(id);   // explore skills (108000..108002): ExploreOpBehavior (web map code)
+    // FUN_00923234: cooldown for the used skill, 2 s for the others; onUsedSkill
+    if (type !== 1) { U.drainMP(h, cost); View.attrChanged(h); }
+    for (const sid of usingSkills()) {
+      if (sid === +id) beginCooldown(sid, finCooldown(sid));
+      else { const c = cooldownLeft(sid); if (!(2 <= c.left)) beginCooldown(sid, 2); }
+    }
+    if (type === 1 || type === 2) U.onUsedSkill(h, target, +id, cost);
     Audio2.play('player-attack-1-' + (1 + (Math.random() * 5 | 0)), 0.7);
-    if (f) f.heroT = Math.max(f.heroT, 0.5);
-    this.run(effs, h, enemy, { elem: elemOfSkill(id) });
-    if (f && this.t.pet) this.t.pet.onHeroSkill(slotIdx, f.mon);
-    t.ui.hud(t);
+    if (this.t.pet) this.t.pet.onHeroSkill?.(combatSlots().indexOf(+id), target);
+    this.t.ui.hud(this.t);
+    return 0;
+  }
+  // after an explore skill (web code path) -> native cooldown bookkeeping
+  exploreUsed(id) {
+    for (const sid of usingSkills()) { if (sid === +id) beginCooldown(sid, finCooldown(sid)); else { const c = cooldownLeft(sid); if (!(2 <= c.left)) beginCooldown(sid, 2); } }
+    U.onUsedSkill(this.hero, null, +id, finMPCost(id));
   }
 
-  // ---------------- monster turn: AI decides skill vs. normal attack
-  monsterTurn(m) {
-    const h = this.hero;
-    pendingUse.length = 0;
-    let used = false;
-    try { const r = Lua.call('__monsterAIb', m.id, m.key || (m.key = 'm' + Math.random().toString(36).slice(2)), this.lt(m), this.lt(h)); used = !!(r && r[0]); } catch (e) { }
-    const ids = [...pendingUse]; pendingUse.length = 0;
-    for (const sid of ids) {
-      const effs = skillEffects(sid, this.lt(m), this.lt(h), Math.max(1, m.rank));
-      this.run(effs, m, h, {});
-      const nm = DB.skill.get(sid); if (nm && S(nm.Name)) this.t.floatText(m.wx, m.wy + 230, S(nm.Name), '#ffd36a', 0.9);
+  // ---- bottles (GameController::feedbackUseBottle)
+  useBottle(type) {
+    const p = P.data, h = this.hero, k = type === 0 ? 'red' : 'blue';
+    if (0 < this.bottleCD[type]) return 0xcc;
+    if ((p[k] | 0) < 1) return 0xca;
+    let hp = 0, mp = 0;
+    if (type === 1) {
+      const cur = U.mp(h), mx = U.fin(h).max_mp; if (mx <= cur) return 0xcb;
+      p[k]--;
+      if (U.onUsingMedicine(h, 999998)) { const v = U.calRecover(h, 3, 6, trunc((mx + 1) / 2)); mp = U.recoverMP(h, v); U.onRecovered(h, 3, 6, mp, v); }
+    } else {
+      const cur = U.hp(h), mx = U.fin(h).max_hp; if (cur < 1 || mx <= cur) return 0xcb;
+      p[k]--;
+      if (U.onUsingMedicine(h, 999997)) { const v = U.calRecover(h, 3, 5, trunc((mx + 1) / 2)); hp = U.recoverHP(h, v); U.onRecovered(h, 3, 5, hp, v); }
     }
-    return used && ids.length > 0;
+    this.bottleCD[type] = 2;
+    if (0 < hp || 0 < mp) View.recover(h, 3, hp, mp);
+    View.attrChanged(h);
+    return 0;
   }
-  // fixed periodic affix effects (e.g. regen) at fight start
-  fightStart(m) {
-    for (const p of m.perm || []) this.run([p.e], m, this.hero, {});
-    // hero: combat passives with periods (110102 regen every 3s)
-    const sp = heroPassives().specials;
-    if (sp[110102]) this.run([{ type: 'skill recover', src: 'caster', hp: stats().max_hp * (+sp[110102].p1 || 0) / 100, period: 3, loop: 999 }], this.hero, m);
+
+  // ---- kill (GC.killHandler = MyPlayer::onKillUnit + Unit::die)
+  onKill(killer, victim, kmode) {
+    if (U.isMonster(victim) && (U.isHero(killer) || killer?.isPet)) this.t.rewardKill(victim, kmode);
   }
-  fightEnd(m) {
-    // stop periodic effects tied to this fight
-    for (const u of [this.hero, m]) if (u?.buffs) u.buffs = u.buffs.filter(b => !b.period && (!b.until || b.until > this.now) && !(b.type === 'froze' || b.type === 'faint'));
-    if (m) Lua.call('__battleEnd', m.key || '');
+
+  // ---- web-side helpers kept for pets / traps / items (TODO P1: pets 300xxx and traps are not reversed yet)
+  rawHurt(tgt, v, src) { v = trunc(v); if (!tgt || v <= 0) return; GC.dealHurtUnit(1, 0, tgt, v, false); }
+  heal(u, v, quiet) { v = trunc(v); if (v > 0) GC.dealRecoverUnit(u, 1, v, 0, false); }
+  skillDamage(src, tgt, elem, val) { return GC.dealDamageUnit(0, src, tgt, 1, elem | 0, trunc(val), false, false, true); }
+  normalAttack(src, tgt) {   // pet swing: same pipeline as SkillAttack (rate 1)
+    const info = U.calAttackDamage(src, tgt, 0, false, false, 1); const flag = { v: false }; let total = 0;
+    if (info.hit) { U.beDamaging(tgt, info, flag); total = sumDmg(info); if (total) U.beHurt(tgt, 0, total); }
+    View.attackHit(src, tgt, info, flag.v, total);
+    if (info.hit) { U.onHitEnemy(src, tgt, total, info); if (0 < total) U.onDamagedByEnemy(tgt, src, info, total); }
+    GC.deathClearing();
+  }
+  run(effs, caster, enemy) { const b = parseEffects(effs, 0, 1, caster, enemy); if (b) U.init(caster).n.chain.append(b); }
+  instant(e, caster, enemy) { this.run([e], caster, enemy); U.init(caster).n.chain.update(0); }
+  fightStart() { } fightEnd() { }
+}
+
+// ---------------------------------------------------------------- error strings (useful_xxx)
+function skillError(code) {
+  switch (code) {
+    case 0xdd: return S('221') || 'Không đủ MP';
+    case 0xe0: return S('224') || 'Kỹ năng đang hồi';
+    case 0xdf: return S('223') || 'Không thể dùng lúc này';
+    case 0xf3: return 'Mục tiêu đã chết';
+    default: return '';
   }
 }
-function elemOfSkill(id) {
-  const n = id % 10; return [0, 1, 2, 3, 4, 0][n] ?? 0;
+
+// ---------------------------------------------------------------- View bridge
+function installView(C) {
+  const T = () => C.t;
+  const elemOf = info => { let best = 0, bv = -Infinity; for (let i = 0; i < 5; i++) if (info.dmg[i] > bv) { bv = info.dmg[i]; best = i; } return best; };
+  View.attackHit = (src, tgt, info, absorbed, total) => {
+    const t = T(); if (!tgt) return;
+    if (!info.hit) { t.floatText(tgt.wx, tgt.wy + 110, 'Trượt', '#cfcfcf', 0.9); return; }
+    tgt.hitT = 0.15;
+    if (absorbed) { t.floatText(tgt.wx, tgt.wy + 110, '0', '#bfe3ff', 0.9); return; }
+    const color = tgt.isHero ? (info.crit ? '#ff6a3a' : '#ff4a4a') : (info.crit ? '#ffcf3a' : ELEM_COLOR[elemOf(info)]);
+    t.floatText(tgt.wx, tgt.wy + 110 + Math.random() * 30, (tgt.isHero ? '-' : '') + total + (info.crit ? '!' : ''), color, info.crit ? 1.45 : 1);
+    if (src?.isHero) { if (info.crit) Audio2.play('crithit-' + (1 + (Math.random() * 3 | 0)), 0.6); else if (!src.actor?.hasSoundEvents(C.attackAnim(src))) Audio2.play('hit-1-' + (1 + (Math.random() * 13 | 0)), 0.6); }
+    else if (tgt.isHero && info.crit) Audio2.play('crithit-' + (1 + (Math.random() * 2 | 0)), 0.6);
+    else Audio2.play('hit-2-' + (1 + (Math.random() * 4 | 0)), 0.5);
+    t.ui.enemy(C.ab?.tgt || t.fight?.mon); t.ui.hud(t);
+  };
+  View.damage = (u, mode, type, total, curHp, crit, absorbed) => {
+    const t = T(); if (!u) return;
+    if (total === 0 && !absorbed) return;
+    u.hitT = 0.12;
+    t.floatText(u.wx, u.wy + 140 + Math.random() * 30, (u.isHero ? '-' : '') + total + (crit ? '!' : ''), u.isHero ? '#ff4a4a' : (crit ? '#ffcf3a' : ELEM_COLOR[type] || '#fff'), crit ? 1.3 : mode === 1 ? 1.15 : 0.9);
+    t.ui.enemy(C.ab?.tgt || t.fight?.mon); t.ui.hud(t);
+  };
+  View.recover = (u, mode, hp, mp) => {
+    const t = T(); if (!u) return;
+    if (0 < hp) t.floatText(u.wx, u.wy + 170, '+' + hp, '#5aff7a', 0.85);
+    if (0 < mp) t.floatText(u.wx, u.wy + 195, '+' + mp + ' MP', '#6ab8ff', 0.8);
+    t.ui.hud(t); t.ui.enemy(C.ab?.tgt || t.fight?.mon);
+  };
+  View.abnormal = (u, s, on, n) => {
+    const t = T(); if (!u) return;
+    if (on && n === 1) { if (s === 1) t.floatText(u.wx, u.wy + 200, 'Choáng', '#9fe3ff', 0.9); if (s === 2) t.floatText(u.wx, u.wy + 200, 'Đóng băng', '#9fe3ff', 0.9); }
+    // AttackBehavior::msg_C_UNIT_ADD/REMOVE_ABNORMAL (faint only)
+    if (s === 1 && C.ab && !C.ab.done && C.ab.other(u)) {
+      if (on && n === 1) { U.init(u).n.chain.cancelAll(); C.idle(u); }
+      if (!on && n === 0) C.ab.startNewAttack(u);
+    }
+    if (s === 3 && on) GC.deathClearing();
+  };
+  View.bodyEffect = (name, u) => { if (u) T().burst(u, 0); };
+  View.sceneEffect = (file, root, u) => { if (u) T().burst(u, 0); };
+  View.flyEffect = fx => { if (fx.tgt) T().burst(fx.tgt, 0); };
+  View.action = (u, idx, speed) => {
+    if (!u?.actor) return;
+    const name = `skill-${idx}-3`;
+    C.playAnim(u, u.actor.has(name) ? name : C.attackAnim(u), speed);
+  };
+  View.attrChanged = () => { bumpStats(); const t = T(); t.ui.hud(t); };
+  View.actionRate = () => { };
+  View.bottle = () => { const t = T(); t.ui.hud(t); };
+  View.qteStart = () => { };   // TODO: QTE mini game UI
+  View.globalEffect = () => { };
+  GC.deathClearing = () => { if (C.ab && !C.ab.done) C.ab.deathClearing(null); };
+  GC.killHandler = (killer, victim, kmode) => C.onKill(killer, victim, kmode);
 }

@@ -12,8 +12,9 @@ import { Tower } from './game/tower.js';
 import { Cloud } from './game/cloud.js';
 import * as Profile from './game/profile.js';
 import { StoryHost, installStory, story } from './game/story.js';
-import { applyBuffLayer } from './game/stats.js';
-import { installSkillLua, skillHost, heroPassives, applyHeroSpecials, activeBuffs, buffMods, invalidatePassives } from './game/skills.js';
+import { installSkillLua, skillHost, invalidatePassives, setPassiveHook } from './game/skills.js';
+import { installNativeLua, hostUseSkill, heroSnapshot, bumpStats, bottleLimit, Ctx, bindHero, invalidateEquipEffects } from './game/native/bridge.js';
+import { resetPassives } from './game/combat.js';
 import { Modes, lookEquips, LAB_START } from './game/modes.js';
 import { Daily } from './game/daily.js';
 import { loadGemTable } from './game/craft.js';
@@ -70,8 +71,10 @@ class Game {
         LocalString: k => DB.str[k] || k,
         SuccessRandom: Lua.raw(LSuccessRandom),
         ...skillHost,
+        UseSkill: hostUseSkill,     // ScriptMgr::LUseSkill -> SkillMgr::use(id, 1, caster, enemy)
       });
-      installSkillLua();
+      installSkillLua(); installNativeLua();
+      setPassiveHook(() => { if (P.data) resetPassives(); });
       installStory(this);
       Profile.setStatHook(s => this.heroStatHook(s));
       this.ui.progress(0.8, 'Kết nối lưu trữ...');
@@ -82,7 +85,7 @@ class Game {
       this.daily = Daily;
       Daily.onDone = tk => this.ui.toast('Hoàn thành nhiệm vụ: ' + Daily.text(tk));
       if (P.data) await setLang(P.data.settings.lang || 'en');
-      invalidatePassives();
+      invalidatePassives();   // -> MyPlayer::resetPassiveSkillEffect
       Audio2.init(P.data?.settings);
       this.ui.progress(0.82, 'Đang tải hình ảnh, hiệu ứng và âm thanh...');
       await Preload.essentials(this.gfx, k => this.ui.progress(0.82 + k * 0.17, `Đang tải hình ảnh, hiệu ứng và âm thanh... ${Math.round(k * 100)}%`));
@@ -93,22 +96,13 @@ class Game {
     this.title();
     Preload.background(this.gfx);
   }
+  // profile.stats(): every final attribute through the native getters (Hero/MyPlayer::getFinX)
   heroStatHook(s) {
     const p = P.data; if (!p) return s;
-    const pv = heroPassives({ ...s, cur_hp: p.hp ?? s.max_hp, cur_mp: p.mp ?? s.max_mp });
-    const t = this.tower; const h = t?.hero;
-    // Unit::calAttribWithBuffs: passive effects + active skill buffs summed in ONE pass, then applied once
-    const effs = [...pv.stat];
-    if (h?.buffs?.length) effs.push(...activeBuffs(h, t.combat.now).filter(b => b.type === 'attrib benefit' || b.type === 'attrib gain'));
-    applyBuffLayer(s, effs);
-    // TODO VERIFY: everything below is web-side (not yet reversed); kept as before
-    const w = p.equipped.weapon; const wt = w ? +DB.equip.get(w.id)?.Type : 0;
-    applyHeroSpecials(s, pv.specials, { weaponType: wt });
-    if (t?.pet) t.pet.heroStat(s);
-    if (h?.buffs?.length) { const sp = buffMods(h, t.combat.now).speed; if (sp) s.fin_atk_speed *= 1 + sp / 100; }
-    // Fierce Battle (107100): attack speed up to p1% by lost HP
-    if (pv.specials[107100] && p.hp != null) s.fin_atk_speed *= 1 + (+pv.specials[107100].p1 || 0) / 100 * Math.max(0, 1 - p.hp / s.max_hp);
-    s.fin_atk_speed = Math.trunc(s.fin_atk_speed);
+    bumpStats();
+    heroSnapshot(s);
+    const t = this.tower;
+    if (t?.pet) t.pet.heroStat(s);   // TODO P1 (pets): MyPlayer adds the following pet to some getters
     return s;
   }
   // camp/main background (750x1334 art, drawn centered + cover) -> stage percentage
@@ -117,10 +111,11 @@ class Game {
     const wx = (bx - 375) * k, wy = (667 - by) * k;
     return { x: (wx / this.viewW + 0.5) * 100, y: (0.5 - wy / this.viewH) * 100 };
   }
-  maxPot(kind) { const p = P.data, s = Profile.stats(); return kind === 'red' ? p.maxRed + (s.extra_red || 0) : p.maxBlue + (s.extra_blue || 0); }
+  // MyPlayer::getBottleLimit: 20 + extra red / blue
+  maxPot(kind) { return bottleLimit(kind === 'red' ? 0 : 1); }
   refillPots() { const p = P.data; p.red = this.maxPot('red'); p.blue = this.maxPot('blue'); }
   title() {
-    this.scene = 'title'; this.tower = null; this.previewActor = null;
+    this.scene = 'title'; this.tower = null; Ctx.tower = null; bindHero(null); this.previewActor = null;
     Audio2.playBGM('theme-1');
     this.ui.title(() => { if (P.data) this.toCamp(true, true); else this.create(); });
   }
@@ -137,6 +132,7 @@ class Game {
     this.previewActor = a; this.previewLook = look;
   }
   async onEquipChanged() {
+    bumpStats(); invalidateEquipEffects(); invalidatePassives();   // equipment skill-level benefits change the passive levels
     if (this.tower) await this.tower.refreshHeroLook();
     if (this.scene === 'camp') await this.campPreview();
   }
@@ -154,7 +150,7 @@ class Game {
     }
     const died = !keepLoot && this.tower?.dead;
     this.runSnapshot = null; this.hardRun = false;
-    this.tower = null; this.scene = 'camp'; this.returnMap = null;
+    this.tower = null; this.scene = 'camp'; this.returnMap = null; Ctx.tower = null; bindHero(null);
     fullHeal(); this.refillPots(); p.curMap = null;
     save();
     Audio2.playBGM('home-1');

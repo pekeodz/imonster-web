@@ -108,7 +108,10 @@ export function skillEffects(id, caster, enemy, lv) {
 
 // ------------------------------------------------------------------ passives (hero)
 let passiveCache = null;
-export function invalidatePassives() { passiveCache = null; }
+let passiveHook = null;
+export function setPassiveHook(f) { passiveHook = f; }
+// skills / equipment changed -> MyPlayer::resetPassiveSkillEffect (native passives live on the hero unit)
+export function invalidatePassives() { passiveCache = null; if (passiveHook) passiveHook(); }
 export function heroPassives(baseStats) {
   if (passiveCache) return passiveCache;
   const out = { stat: [], perm: [], specials: {}, double: 0 };

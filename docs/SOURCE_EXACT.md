@@ -21,17 +21,37 @@ Everything marked **VERIFY/TODO** is not reversed yet and must not be "balanced"
 | Hard mode +100 LUC | no client-side bonus; original "hard rate" came from the server (`GameMap+0x68`) | removed |
 | 9 equipment slots | no Type 13/45 rows in equip.csv | `EQUIP_SLOTS` (save migration moves offhand/ring2 to bag) |
 | Specialization roll | `CalEquipmentSpecial(equID, specID)` incl. the 6 hard-coded overrides | `makeEquip` stores `it.spec=[{id,p1,p2}]`; old saves rolled once on load |
-| DK Cobra Stick (spec 221) | `EquipEffect_221::beforeDamageCalculation`: mode 0 and target curHP >= finMaxHP → arm; `onHitEnemy`: armed → `SkillShortEffect(2.0, SkillFaint)` | `combat.js specBefore/specOnHit` |
+| DK Cobra Stick (spec 221) | `EquipEffect_221::beforeDamageCalculation`: mode 0 and target curHP >= finMaxHP → arm; `onHitEnemy`: armed → `SkillShortEffect(2.0, SkillFaint)` | `native/equipfx.js` `EQ[221]` |
 | Affix option groups | `"30,43;31,44"` = one option holding 2 affixes | `makeEquip` |
 
 ## VERIFY / TODO
 
 - Hero extra base fields (`Hero+0x154..0x170`, 2nd addend in `getFinMinAttack/MaxHP/...`) → web uses 0.
 - Abnormal status 4/5 branch in min-attack getters (min attack returns another getter) → not ported.
-- All other specialization classes (`EquipEffect_2xx..6xx`): stored, **no runtime effect yet**.
 - Option pick for affix/specialization lists (assumed uniform `arc4random() % n`).
 - Map `ResInc`: consumer not reversed; web adds it to monster resists.
 - Monster `rate` from `GameMap::genRandomMap` (lv>=21 maps + server bonus) → web uses 1. Web hard mode (`Modes.hardScale`) is **non-original**.
 - `applyHeroSpecials`, pet stat effects, speed-up buffs, damage-change buffs, `applyDamage` (`max(1, round)`), gold ±20% random on kill, EXP rounding: web-side, not yet compared with native.
 - Drop path `calItemIDWithDropSet` retry logic.
 - `CalEquipmentAttrib/Affix` results are `Math.round`ed — native conversion not checked.
+
+## Doc 2 – P0 Equipment Specialization runtime (v6)
+
+| Item | Native evidence | Web |
+|---|---|---|
+| Property objects | every base / affix / special / gem property of an item is one `EquipEffect_<id>` object (p1 `+0x34`, p2 `+0x38`, state `+0x40/+0x60/+0xf0`, MyTimer `+0x60/+0x70`) | `native/equipfx.js` – all **412** classes (`EQ[id]`), every method (553/553 checked by `build/covm_probe.js`) |
+| Iteration order | `Equipment::forEachProperty`: base (`+0xb0`) → affix (`+0xc8`) → special (`+0xe0`) → gems (`+0xf8..`, `Consumable::forEachAffix`); `Hero::forEachEquipment` slot order | `bridge.heroEquipEffects()` (objects cached per item, battle state kept) |
+| Equipment layer | `Hero::calAttribWithEquipments` lambda `0117e8d8`: base-list benefits join the base value, other lists → benefit + gain; attr 1/2 also add attr 3; `bene + int((gain+100)*base/100)` | `bridge.calAttribWithEquipments` (live, used by `finAttr`, `finMPCost`, `finCooldown`) – identical to the old flat layer for plain properties (40 random sets, 0 diff) |
+| Skill level props 1000–1092, 99 | `getSkillBenefit(skill)`; `isFffective` = `MyPlayer::getOwnSkill` | `SKILL_PROPS` → `finSkillLevel` |
+| Hooks | onEnterBattle / onLeaveBattle / onHitEnemy / onDamagedByEnemy / onUsedSkill / onKillEnemy / before/after(Be)DamageCalculation / afterRecoverCalculation / beDamaging / onTriggerEffect / onDodgeEnemy / afterTrapDamageCalculation | dispatched by `U.forEachEffect` (equip effects first); equip MyTimers updated from `U.update` |
+| Anonymous effects | vtable `01187f08` = SkillFaint, `01184c20` = SkillFroze(qte=false), `01187c80` = SkillProtect | `shortFaint`, `SkillFroze(false)`, `SkillProtect` |
+| C_UNIT_TRIGGER | 625/626 post `{ek}`; MyPlayer forwards to `onTriggerEffect` (627 ← "626", 628 ← "625") | `postTrigger` |
+| Unit raw fields | `+0x74` HP, `+0x7c` MP, `+0x80` base max MP (= HeroTemplate MaxMP), `+0x78` base max HP | `rawMaxMP`, `rawHeroHP` |
+
+### VERIFY / TODO (doc 2 equipment)
+- Fashion system is not in the web build: `getFashion()` → none, so fashion doubling (634–637, 652–659), 629/630/632 fashion branches and 650 (fashion gems) use the no-fashion path.
+- 531: two float slots of the mode array are not visible in the decomp (assumed 0). 645: decomp adds the change to the enemy with `-(p2/100)` integer division – ported as decompiled.
+- 553: SkillFreeEffect trigger inside a SkillShortEffect never fires (ShortEffect does not trigger its child) – ported as is.
+- `Unit+0x78` (662) assumed HeroTemplate MaxHP; monsters use fin max HP/MP.
+- `Hero::getEquipmentWithType(t)` mapped to `EQUIP_SLOTS[t]`.
+- `MsgCenter::postMsg` assumed synchronous.
