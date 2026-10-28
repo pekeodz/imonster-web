@@ -5,13 +5,14 @@ import { Audio2 } from '../engine/audio.js';
 import { rgba } from '../engine/gfx.js';
 import { buildPlayerSkeleton, loadSkeletonData, SpineActor } from '../engine/spinekit.js';
 import { Grid, WALL, FLOOR, RNG, wallStyle, floorStyle, generateDungeon, bfs, findPath } from './mapgen.js';
-import { monsterStats, weaponStance } from './stats.js';
+import { monsterStats } from './stats.js';
 import { P, stats, addExp, addItem, save, fullHeal } from './profile.js';
 import { makeAny, rollDropSet, resolveDrop, itemName, itemIcon, itemQuality, itemRecord, QUALITY_COLORS } from './items.js';
 import { Combat, AFFIX_NAMES } from './combat.js';
 import { story } from './story.js';
 import { adventureSkill } from './skills.js';
 import { U, GC, f32, trunc } from './native/core.js';
+import { UV, ST } from './native/unitview.js';
 import { arc4random } from '../engine/nativerng.js';
 import { Ctx, bindHero, bumpStats, bottleLimit, finMPCost } from './native/bridge.js';
 import { Traps } from './traps.js';
@@ -350,8 +351,8 @@ export class Tower {
     let st = monsterStats(rec, level ?? this.level, rank, 0, rate);
     if (this.hard) st = Modes.hardScale(st);   // NON-ORIGINAL: web hard mode (original hard rate came from the server)
     const u = { id, rec, rank, x, y, st, hp: st.max_hp, alive: true, isHero: false, dir: 3, flip: this.rng.chance(0.5), wx: x * T + 50, wy: -(y * T + 50) - 20, aware: false, alpha: 1,
-      key: extra.key || '', scripts: extra.scripts || {}, state: extra.state | 0 };
-    if (extra.dir3) u.flip = false;
+      key: extra.key || '', scripts: extra.scripts || {}, ustate: extra.state | 0, bossNode: rank === 4 };
+    if (extra.dir3) { u.udir = 3; u.flip = true; }   // Unit::setDirection(3)
     u.mp = st.max_mp; u.onDie = () => this.monsterDie(u);
     this.units.push(u);
     return u;
@@ -363,10 +364,9 @@ export class Tower {
       const sc = u.rank === 3 ? 1.2 : 1;   // TowerView::_addMonster: rank 3 -> 1.2, others 1.0 (BossNode 1.0)
       sk.scaleX = sk.scaleY = sc; u.baseScale = sc;
       u.actor = new SpineActor(sk);
-      // a hidden boss (Unit state 5) waits in its "hide" pose until C_BOSS_APPEAR
-      if (u.state === 5 && u.actor.names.has('hide-1-3')) u.actor.play('hide-1-3', true);
-      else u.actor.play('stand-1-3', true);
-      u.actor.state.update(Math.random() * 2);
+      u.actor.owner = u;
+      // TowerView::_addMonster: animateWithState(loop, 1.0) with the current state (hidden boss: "hide-1-D")
+      UV.changeState(u, true, 1.0);
       // rank 2 / 3: ground ring ccb/object/leaderfx-1 / -2 under the model (no tint)
       if (u.rank === 2 || u.rank === 3) u.ring = towerFx(u.rank === 2 ? 'leaderfx-1' : 'leaderfx-2');
     } catch (e) { console.warn('monster model', u.rec.MonsterModel, e); }
@@ -374,7 +374,8 @@ export class Tower {
   async spawnHero() {
     const sk = await buildPlayerSkeleton(P.data.look, lookEquips(P.data));
     const [x, y] = this.born;
-    this.hero = { isHero: true, x, y, wx: x * T + 50, wy: -(y * T + 50) - 20, actor: new SpineActor(sk), dir: 2, flip: false, path: null, alive: true, alpha: 1 };
+    this.hero = { isHero: true, x, y, wx: x * T + 50, wy: -(y * T + 50) - 20, actor: new SpineActor(sk), dir: 2, flip: false, path: null, alive: true, alpha: 1, ustate: 0 };
+    this.hero.actor.owner = this.hero;
     this.hero.actor.state.data.defaultMix = 0;
     bindHero(this.hero); this.hero.onDie = () => this.heroDie();
     this.units.push(this.hero);
@@ -383,13 +384,16 @@ export class Tower {
   async refreshHeroLook() {
     if (!this.hero) return;
     const sk = await buildPlayerSkeleton(P.data.look, lookEquips(P.data));
-    this.hero.actor = new SpineActor(sk); this.hero.actor.state.data.defaultMix = 0; this.heroIdle(true);
+    this.hero.actor = new SpineActor(sk); this.hero.actor.owner = this.hero; this.hero.actor.state.data.defaultMix = 0;
+    if (this.combat.inBattle()) UV.changeState(this.hero, false, f32(f32(U.actionRate(this.hero) * U.fin(this.hero).fin_atk_speed) / 100)); else this.heroIdle(true);   // VERIFY: equipment change mid-battle
   }
+  // StandBehavior / UnitNode::animateWithState for state 0: "stand-1-D" on track 0 (HeroNode only overrides attack);
+  // the stand-2..4 variants are HeroNode::relaxAnimate (UV.animComplete countdown), not a weapon stance.
   heroIdle(force) {
-    const h = this.hero; const st = weaponStance(P.data);
-    const name = `stand-${st}-${h.dir}`;
-    if (force) h.actor.cur = null;
-    h.actor.play(name, true);
+    const h = this.hero; const a = h.actor; if (!a) return;
+    const name = `stand-1-${h.dir}`;
+    if (!force && a.cur === name && a.curTrack === 0 && a.state.getCurrent(0)?.__exact) return;
+    a.spineAnimate(0, name, true, 1.0);
   }
 
   // ---------------------------------------------------------------- queries
@@ -605,61 +609,73 @@ export class Tower {
     }
     this.ui.hud(this);
   }
-  // ---------------------------------------------------------------- fights (native AttackBehavior in combat.js)
+  // ---------------------------------------------------------------- fights (native AttackBehavior / FightBehavior in combat.js)
+  // MyPlayer::attack: the path layer has already brought the hero next to the target (MoveBehavior);
+  // AttackBehavior::init checks dist == 1 and owns everything from here (approach, states, animations, end).
   startFight(mon) {
     if (this.fight && this.fight.mon === mon) return;
-    if (this.combat.inBattle()) return;
+    if (this.combat.inBattle() || !mon?.alive) return;
     const h = this.hero;
-    this.face(h, mon.x, mon.y);
-    mon.flip = mon.x > h.x ? true : mon.x < h.x ? false : mon.flip;
+    h.path = null; h.intent = null;
     mon.aware = true;
     this.fight = { mon, time: 0 };
-    h.path = null; h.dir = 3;
     this.ui.enemy(mon);
-    this.combat.startBattle(mon);
-  }
-  // C_ENTER_BATTLE (TowerView::msg_C_ENTER_BATTLE): veil off, enemy info, ScriptMgr::triggerBattleBegin(template id)
-  notifyEnterBattle(mon) {
-    if (this.g.veil && this.bossVeil) { this.g.veil = false; this.bossVeil = false; }
-    this.ui.enemy(mon);
-    if (this.pet) this.pet.fightStart?.(mon);   // TODO P1 (pet runtime): web pet joins when the battle is entered
-    story('battle begin', { mon_id: mon.id });
-  }
-  // C_BOSS_APPEAR (TowerView::msg_C_BOSS_APPEAR): veil + input off, MapTemplate BossBGM, BossNode "appear" animation,
-  // boss 501233 walls the tile left of the hero, ScriptMgr::triggerBossAppear(template id). The battle starts when the
-  // appear animation completes (FightBehavior::msg_C_UNIT_ANIM_COMPLETE, state 5).
-  bossAppear(mon, done) {
-    this.g.veil = true; this.bossVeil = true;
-    if (this.row.BossBGM) Audio2.playBGM(this.row.BossBGM);
-    if (+mon.id === 501233) { const h = this.hero; this.grid.set(h.x - 1, h.y, WALL); }
-    story('boss appear', { mon_id: mon.id });
-    const fin = () => { mon.state = 0; done(); };
-    const a = mon.actor;
-    if (a && a.names?.has('appear-1-3')) { a.cur = null; a.play('appear-1-3', false, () => { a.cur = null; a.play('stand-1-3', true); fin(); }); }
-    else fin();
-  }
-  // AttackBehavior / FightBehavior::end -> GameController::notifyLeaveBattle(template id, rank, level, result)
-  //   -> ScriptMgr::triggerBattleEnd {result, mon_id, mon_rank, mon_lv}
-  onBattleEnd(mon, result) {
-    const f = this.fight; this.fight = null;
-    if (this.bossVeil) { this.g.veil = false; this.bossVeil = false; }
-    if (result) story('battle end', { result: result === 'win' ? 0 : result === 'die' ? 1 : 2, mon_id: mon?.id, mon_rank: mon?.rank | 0, mon_lv: mon?.st?.lv | 0 });
-    this.ui.enemy(null);
-    if (this.hero.alive) this.heroIdle(true);
-    if (mon?.alive && mon.actor) { mon.actor.cur = null; mon.actor.play('stand-1-3', true); }
+    if (!this.combat.startBattle(mon)) { this.fight = null; this.ui.enemy(null); this.heroIdle(true); return; }
     this.ui.hud(this);
   }
-  // kept for callers outside the battle flow
-  endFight(result) { if (this.combat.inBattle()) this.combat.ab.end(); else if (this.fight) this.onBattleEnd(this.fight.mon, result); }
-  // AttackBehavior state 7: the attacker moves into the dead target's tile, then the battle ends (win)
-  walkInto(att, tgt, cb) {
-    const h = this.hero;
-    if (att !== h || !this.grid.isFloor(tgt.x, tgt.y) || this.objAt(tgt.x, tgt.y)) { cb(); return; }
-    h.path = [[tgt.x, tgt.y]]; h.intent = { cb };
+  // web world position of a tile for a unit (GameMap::calPositionWithTile)
+  tilePos(x, y) { return [x * T + 50, -(y * T + 50) - 20]; }
+  // Unit::onArriveTile / MyPlayer::onArriveTile(from, to) at the end of the state-7 walk-in
+  unitArriveTile(u, from, to) {
+    if (!u.isHero) return;
+    this.reveal(u.x, u.y);
+    if (this.pass && !this.nearPassFired && Math.abs(u.x - this.pass[0]) + Math.abs(u.y - this.pass[1]) <= 2) { this.nearPassFired = true; story('near pass', {}); }
+    this.ui.hud(this);
   }
+  // Unit::moveTo(tile, true) after AttackBehavior::end (escape: back to the original tile; win: the target tile)
+  moveUnitTo(u, tile) {
+    if (!u.isHero) return;
+    const [px, py] = this.tilePos(tile[0], tile[1]);
+    if (u.x === tile[0] && u.y === tile[1] && u.wx === px && u.wy === py) return;
+    u.path = [[tile[0], tile[1]]]; u.intent = null;
+  }
+  // Veil::setEnabled (input blocked while enabled)
+  setVeil(on) { this.g.veil = !!on; }
+  // escape_node (ui/tower-2-1) shown while escaping
+  showEscaping(on) { this.ui.escaping?.(on); this.ui.hud(this); }
+  // C_ENTER_BATTLE (TowerView::msg_C_ENTER_BATTLE): veil off, enemy info, ScriptMgr::triggerBattleBegin(template id)
+  notifyEnterBattle(mon) {
+    this.setVeil(false);
+    this.ui.enemy(mon); this.ui.hud(this);
+    story('battle begin', { mon_id: mon.id });
+  }
+  // C_BOSS_APPEAR (TowerView::msg_C_BOSS_APPEAR): presentation only. Veil + input off, MapTemplate BossBGM, BossNode
+  // appearAnimate (track = unit state 5: "appear-1-D" then "stand-1-D"), boss 501233 walls the tile left of the hero,
+  // ScriptMgr::triggerBossAppear(template id). FightBehavior owns the battle state and starts it on the appear complete.
+  bossAppear(mon) {
+    this.setVeil(true);
+    if (this.row.BossBGM) Audio2.playBGM(this.row.BossBGM);
+    UV.appear(mon);
+    if (+mon.id === 501233) { const h = this.hero; this.grid.set(h.x - 1, h.y, WALL); }
+    story('boss appear', { mon_id: mon.id });
+  }
+  // AttackBehavior / FightBehavior::end -> GameController::notifyLeaveBattle(template id, rank, level, result)
+  //   -> TowerView::msg_C_LEAVE_BATTLE -> ScriptMgr::triggerBattleEnd {result, mon_id, mon_rank, mon_lv}
+  // stand: the StandBehavior after a normal AttackBehavior (state 0 + notifyChangeState(true, 1.0) unless 0 / 3)
+  onBattleEnd(mon, result, stand) {
+    this.fight = null;
+    this.setVeil(false); this.showEscaping(false);
+    if (result) story('battle end', { result: result === 'win' ? 0 : result === 'die' ? 1 : 2, mon_id: mon?.id, mon_rank: mon?.rank | 0, mon_lv: mon?.st?.lv | 0 });
+    this.ui.enemy(null);
+    const h = this.hero;
+    if (stand && h.alive && !h.path) { const s = UV.state(h); if (s !== 0 && s !== 3) { UV.setState(h, 0); this.heroIdle(true); } else this.heroIdle(); }
+    this.ui.hud(this);
+  }
+  // kept for callers outside the battle flow (story / items)
+  endFight(result) { if (this.combat.inBattle()) this.combat.ab.end(); else if (this.fight) this.onBattleEnd(this.fight.mon, result, true); }
   // 100 ATK SPD = one attack / 2 s (attack animations are 2 s long and play at fin_atk_speed * act_rate / 100)
   attackInterval(st) { const v = st.fin_atk_speed ?? 100; return v > 0 ? 2.0 / (v / 100) : Infinity; }
-  idleUnit(u) { if (u.isHero) { if (u.alive) this.heroIdle(true); } else if (u.alive && u.actor) { u.actor.cur = null; u.actor.play('stand-1-3', true); } }
+  idleUnit(u) { if (u.isHero) { if (u.alive) this.heroIdle(true); } else if (u.alive && u.actor) UV.changeState(u, true, 1.0); }
   burst(u, elem = 0) {
     const col = [[1, 1, 1], [1, .55, .2], [.5, .85, 1], [.85, .5, 1], [.55, .9, .35]][elem] || [1, 1, 1];
     this.fx.push({ kind: 'burst', x: u.wx, y: u.wy + 70, t: 0, life: 0.5, col });
@@ -693,6 +709,7 @@ export class Tower {
     const snd = String(m.rec.DeathSound ?? '').split(',').filter(Boolean);
     if (snd.length) Audio2.play(snd[arc4random() % snd.length]);
     const a = m.actor;
+    if (a && m.rank !== 4) { a.state.clearTracks(); a.curTrack = 0; }   // the node stops its animation (MonsterNode::dieAnimate fades it out)
     if (m.rank === 4 && a && a.names.has('death-1-3')) { m.corpse = true; a.cur = null; a.play('death-1-3', false, () => { if (a.names.has('deathloop-1-3')) a.play('deathloop-1-3', true); }); }
     this.ui.enemy(null);
   }
@@ -819,7 +836,7 @@ export class Tower {
     }
     if (this.fight) this.fight.time += dt;
     this.traps.update(dt);
-    if (this.pet) { this.pet.follow(h, dt); this.pet.update(dt, this.combat.ab?.state === 3 || this.combat.ab?.state === 5 ? this.fight : null);   // TODO P1 pet runtime; only while the battle is entered
+    if (this.pet) { this.pet.follow(h, dt); this.pet.update(dt, this.combat.battleState() === 3 ? this.fight : null);   // TODO P1 pet runtime: pet acts only while the battle is in state 3
       this.pet.unit.actor?.update(dt); }
     for (const u of this.units) {
       if (u.hitT) u.hitT = Math.max(0, u.hitT - dt);

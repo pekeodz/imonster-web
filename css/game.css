@@ -234,3 +234,8 @@ select{font:inherit;font-weight:700;padding:calc(8*var(--u));border-radius:calc(
 .forgegrid{display:grid;grid-template-columns:1fr 1fr;gap:calc(14*var(--u))}
 .forgebtn{display:flex;flex-direction:column;align-items:center;gap:calc(6*var(--u));padding:calc(18*var(--u)) calc(10*var(--u));border-radius:calc(16*var(--u));background:linear-gradient(#e9cf98,#c9a466);border:calc(3*var(--u)) solid #8a5a2a;color:#3a2410;font-weight:800;font-size:calc(26*var(--u));box-shadow:0 calc(4*var(--u)) 0 #6b4423}
 .forgebtn span{font-size:calc(18*var(--u));font-weight:600;opacity:.8;text-align:center}
+
+/* TowerView escape_button / escape_node */
+.escbtn{position:absolute;right:calc(30*var(--u));bottom:calc(230*var(--u));width:calc(120*var(--u));height:calc(120*var(--u));pointer-events:auto;cursor:pointer}
+.escbtn .ccb-root{position:absolute;left:50%;top:50%}
+.escaping{position:absolute;left:0;right:0;top:calc(520*var(--u));text-align:center;color:#fff;font-size:calc(34*var(--u));text-shadow:0 0 calc(6*var(--u)) #000;pointer-events:none}

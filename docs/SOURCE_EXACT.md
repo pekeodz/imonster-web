@@ -82,3 +82,22 @@ Everything marked **VERIFY/TODO** is not reversed yet and must not be "balanced"
 - `triggerBattleBegin` return 2 → "battle-1" UI animation not shown.
 - Pet runtime (P1) now only acts while the battle is entered (states 3/5).
 - Fixed-map object scripts (`OnOpened`) and triggers (`OnPlayerEnter`) are parsed/kept but not run yet (P1 Story).
+
+## Doc 3 – Combat AttackBehavior / Spine source-exact (v8)
+Native: `AttackBehavior::init/update/enterBattle/startNewAttack/onAnimationEvent/onAnimationComplete/onAnimationStart/deathClearing/escape/end`,
+`FightBehavior::init/update/onAnimationComplete/end`, `StandBehavior`, `UnitNode::getAnimateWithState/animateWithState/spineAnimate/spineAnimates/appearAnimate/onAnimationComplete/relaxAnimate`, `HeroNode/MonsterNode/BossNode` overrides, `TowerView::msg_C_ATTACK_HIT`.
+- Spine is renderer + event source only. Every exact entry (`SpineActor.spineAnimate/spineAnimates`, track = unit state) forwards start/event/complete with its track index to `combat.js` (`SpineActor.router`); combat decides hit/damage/death.
+- Removed: synthetic 60 % hit timer, watchdog/stall timers, animation-name fallback in combat, hit sounds `hit-1-x/hit-2-x`, tap-to-escape, `walkInto`, Tower setting boss state, weapon "stance" idle (`stand-N` is `HeroNode::relaxAnimate`).
+- Approach: state 1, both units move at `Unit::getMoveSpeed` 375 px/s (raw dt) to the quadrant meet positions (A = tgt + (∓30.000002, ±20 / 0), T = tgt + (±20, 0)); exact arrival → `enterBattle` (state 3; attacker rate 4.0, target `actionRate*fin_atk_speed/100`).
+- Hit only on event named exactly `hit` (any track, behavior state 3 or 5); multi-hit: stored DamageInfo recalculated from the 2nd hit (`n>0`). Next attack only on complete of track 2 (`startNewAttack`), ignored in states 4/6/7/8.
+- Death: attacker dead → state 4 (result die); target dead → state 7, attacker walks to the target tile at 375·0.5 px/s then state 8 (`onArriveTile`); boss (`FightBehavior`) win: state 7 → end on track-2 complete, no walk-in.
+- Escape: only the HUD button (`object/button-8-1`, shown in state 3), Veil 0x20/4.0, attacker state 6 run, `MyTimer` 2 s → target full HP, back to its tile center, state 0; hero returns to his tile (state 6 → moveTo attTile).
+- Sounds: crit start sound (track 2 hero crit, `crit-1..3`), crit hit (`media/sound/crit` / `crithit-*` with native weights), near-death `dying-1` (1/7), single-hit kill `powerful-1/2` (2/11); Spine `sound-*`/`gsound-*` events every time (arc4random pick).
+- Relax: track-0 complete countdown (ctor `arc4random()%3+3`, reset `%6+4`) → hero `stand-(2..4)-D, stand-1-D`, monster `stand-2-3, stand-1-3`.
+- Pets act only while the behavior is in state 3.
+
+### VERIFY / TODO (combat)
+- `UnitNode::setInView` culling of Spine sound events (web uses `inView !== false`).
+- Equipment changed mid-battle: web rebuilds the hero skeleton and re-plays `animateWithState`.
+- Models missing an exact animation name: spine-cpp logs and plays nothing → the battle waits (by design, logged once).
+- QTE, popup words (`hit/miss` words), `battle-1` UI animation, `SkeletonAnimation::update` call right after `spineAnimates`.

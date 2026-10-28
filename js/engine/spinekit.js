@@ -178,24 +178,64 @@ export async function buildPlayerSkeleton(look, equips) {
 }
 
 export class SpineActor {
+  static rand = n => Math.floor(Math.random() * n);   // replaced by arc4random() % n in main.js
+  static router = null;                               // (actor, kind, track, name, ev, entry) -> combat / view
+  static shake = null;
+  static _warned = new Set();
+  static warnMissing(n, track) { const k = n + '#' + track; if (!SpineActor._warned.has(k)) { SpineActor._warned.add(k); console.warn('[SPINE] animation not found', n, 'track', track); } }
   constructor(skeleton) {
-    this.skeleton = skeleton;
+    this.skeleton = skeleton; this.curTrack = 0;
     this.state = new spine.AnimationState(new spine.AnimationStateData(skeleton.data));
     this.state.data.defaultMix = 0.1;
     this.names = new Set(skeleton.data.animations.map(a => a.name));
     this.cur = null;
-    // original animation events: "sound-1"/"sound-2" (random pick from a list, "0" = silence), "hit"/"fire" = impact frame
-    this.state.addListener({ event: (entry, ev) => {
-      const n = ev.data.name;
-      if (n === 'sound-1' || n === 'sound-2') {
-        const an = entry.animation?.name || '';
-        if (an.startsWith('stand')) { const now = performance.now(); if (now - (this._fun || 0) < 12000 || Math.random() < 0.5) return; this._fun = now; } // idle voices: occasional
-        const list = String(ev.stringValue || ev.data.stringValue || '').split(/[,;]/).filter(Boolean);
-        const pick = list[Math.floor(Math.random() * list.length)];
-        if (pick && pick !== '0' && SpineActor.sound && !this.mute) SpineActor.sound(pick);
-      } else if ((n === 'hit' || n === 'fire') && entry.onHit) entry.onHit(n);
-    } });
+    // UnitNode::onAnimationEvent / onAnimationComplete / onAnimationStart (renderer side):
+    //  - "sound-1"/"sound-2": one random entry of the comma list (arc4random), played every time (no throttle)
+    //  - "gsound-1"/"gsound-2": same, as a group sound;  "shake-t": C_TOWER_SHAKE with a random entry
+    //  - every event / complete / start is forwarded unchanged to SpineActor.router with the TRACK INDEX
+    //    (UnitNode::spineAnimate uses the unit state as the track: GameController::feedbackUnitAnimation* "state").
+    //    The renderer never decides gameplay (no hit / fire interpretation here).
+    this.state.addListener({
+      start: entry => { if (entry.__exact) SpineActor.router?.(this, 'start', entry.trackIndex, entry.animation?.name, null, entry); },
+      event: (entry, ev) => {
+        const n = ev.data.name;
+        const list = () => String(ev.stringValue ?? ev.data.stringValue ?? '').split(',').filter(x => x !== '');
+        if (n === 'sound-1' || n === 'sound-2' || n === 'gsound-1' || n === 'gsound-2') {
+          const l = list(); if (l.length && SpineActor.sound && !this.mute && this.inView !== false) { const pick = l[SpineActor.rand(l.length)]; if (pick && pick !== '0') SpineActor.sound(pick); }
+        } else if (n === 'shake-t') { const l = list(); if (l.length) SpineActor.shake?.(l[SpineActor.rand(l.length)]); }
+        if (entry.__exact) SpineActor.router?.(this, 'event', entry.trackIndex, n, ev, entry);
+        else if ((n === 'hit' || n === 'fire') && entry.onHit) entry.onHit(n);   // legacy (non-combat) path only
+      },
+      complete: entry => { if (entry.__exact) SpineActor.router?.(this, 'complete', entry.trackIndex, entry.animation?.name, null, entry); },
+    });
   }
+  // ---- SOURCE-EXACT path (UnitNode::spineAnimate / spineAnimates / setActionRate). No name fallback: a missing
+  // animation is reported and nothing is played (no synthetic complete / hit).
+  spineAnimate(track, name, loop, rate) {
+    if (!name || !this.names.has(name)) { console.error('[SPINE] missing animation', name, 'track', track); return null; }
+    const cur = this.state.getCurrent(this.curTrack ?? 0);
+    const prevT = cur ? cur.trackTime : -1;
+    this.state.clearTracks(); this.skeleton.setToSetupPose();
+    if (0 < rate) this.state.timeScale = rate;
+    const e = this.state.setAnimation(track, name, !!loop); e.__exact = true; e.mixDuration = 0;
+    if (track === 1 && 0 <= prevT) e.trackTime = prevT;   // run: keep the cycle position
+    this.curTrack = track; this.cur = name;
+    return e;
+  }
+  spineAnimates(track, names, loop, rate) {
+    if (!names.length) return null;
+    this.state.clearTracks(); this.skeleton.setToSetupPose();
+    if (0 < rate) this.state.timeScale = rate;
+    let e = null;
+    // SkeletonAnimation::addAnimation of a name the skeleton lacks only logs and adds nothing (spine-cpp)
+    names.forEach((n, i) => {
+      if (!this.names.has(n)) { SpineActor.warnMissing(n, track); return; }
+      e = this.state.addAnimation(track, n, i === names.length - 1 ? !!loop : false, 0); e.__exact = true; e.mixDuration = 0;
+    });
+    this.curTrack = track; this.cur = names[names.length - 1];
+    return e;
+  }
+  setActionRate(rate) { this.state.timeScale = rate; }
   // time of the first impact event of an animation (seconds), or null
   hitTime(name) {
     const a = this.skeleton.data.findAnimation(name); if (!a) return null;
@@ -216,7 +256,9 @@ export class SpineActor {
       if (!alt) { onEnd && onEnd(); return null; }
       name = alt;
     }
-    if (this.cur === name && loop) return;
+    if (this.cur === name && loop && !this.curTrack) return;
+    if (this.curTrack) { this.state.clearTracks(); this.curTrack = 0; }   // leaving the exact (combat) path
+    this.state.timeScale = 1;
     this.cur = name;
     const e = this.state.setAnimation(0, name, loop);
     if (onEnd) e.listener = { complete: () => { e.listener = null; onEnd(); } };

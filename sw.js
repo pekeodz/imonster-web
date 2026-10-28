@@ -1,5 +1,5 @@
 // Service worker: cache-first for game files so the game can be played offline after loading once.
-const CACHE = 'imonster-v13';
+const CACHE = 'imonster-v14';
 const CORE = ['./', 'index.html', 'css/game.css', 'js/lib/spine-webgl.js', 'js/lib/fengari.js', 'js/main.js', 'manifest.webmanifest'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(CORE)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())); });

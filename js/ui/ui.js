@@ -6,6 +6,7 @@ import { P, stats, save, equip, unequip, removeItem, addItem, canEquip, wipe, ne
 import { expRow } from '../game/stats.js';
 import { itemName, itemIcon, itemQuality, itemRecord, attrText, sellPrice, EQUIP_SLOTS, SLOT_NAMES_VI, slotsForType, QUALITY_COLORS, makeEquip, makeItem, toLuaEqu } from '../game/items.js';
 import { Lua } from '../engine/lua.js';
+import { loadCCB, CCBView } from './ccb.js';
 import { Cloud } from '../game/cloud.js';
 import { groupsOrdered, skillLevel, canLearn, learn, resetSkills, skillDesc, combatSlots, adventureSkill, pointsSpent, learnedInGroup, COMBAT_GROUPS } from '../game/skills.js';
 import { AFFIX_NAMES, cooldownLeft } from '../game/combat.js';
@@ -127,6 +128,8 @@ export class UI {
       <div class="enemy hidden pass" data-k="enemy"><div class="ename" data-k="ename"></div><div class="hbar"><i data-k="ehp"></i><b data-k="ehpt"></b></div></div>
       <div class="minimap" data-k="mini"><canvas width="100" height="100"></canvas></div>
       <div class="lootfeed" data-k="loot"></div>
+      <div class="escbtn hidden" data-k="esc"></div>
+      <div class="escaping hidden" data-k="escaping"></div>
       <div class="hud-bottom pass">
         <button class="pot" data-k="red"><span data-k="redn"></span><i class="cd" data-k="redcd"></i></button>
         <button class="pot blue" data-k="blue"><span data-k="bluen"></span><i class="cd" data-k="bluecd"></i></button>
@@ -150,6 +153,10 @@ export class UI {
         else this.confirm(`Năng lượng hồi trại: ${p.power || 0}/100 (hạ quái để nạp).\nBỏ cuộc về trại sẽ MẤT vàng và đồ nhặt được trong lần leo tháp này. Vẫn về?`, () => this.g.toCamp(false));
       };
       q('mini').onclick = () => q('mini').classList.toggle('big');
+      // TowerView escape_button (ccb object/button-8-1) -> GameController::feedbackEscape -> C_ESCAPE_BATTLE
+      q('esc').onclick = e => { e.stopPropagation(); this.g.tower?.combat.escape(); };
+      loadCCB('object/button-8-1').then(def => { const v = new CCBView(def); q('esc').append(v.el); return v.ready(); }).catch(() => { q('esc').textContent = '⇦'; });
+      q('escaping').textContent = S('useful_052');
       this.buildSkillBar();
     }
     const q = this.hq;
@@ -162,7 +169,10 @@ export class UI {
     q.redn.textContent = p.red; q.bluen.textContent = p.blue;
     q.home.style.setProperty('--pw', Math.min(100, p.power || 0) + '%'); q.home.classList.toggle('full', (p.power || 0) >= 100);
     if (t) this.minimap(t);
+    // escape button only while the battle is in state 3 (AttackBehavior::msg_C_ESCAPE_BATTLE accepts state 3 only)
+    q.esc.classList.toggle('hidden', !(t && t.combat?.battleState() === 3));
   }
+  escaping(on) { this.hq?.escaping?.classList.toggle('hidden', !on); }
   tick(t) {
     if (!this.hq || !t) return;
     const cd = t.combat?.bottleCD || [0, 0];

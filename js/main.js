@@ -1,11 +1,12 @@
 // iMonster Classic: Hero Adventure — web remake. Boot + scene management.
 import { DB, loadDB, setLang } from './engine/db.js';
 import { Lua } from './engine/lua.js';
-import { Lrand, LSuccessRandom } from './engine/nativerng.js';
+import { Lrand, LSuccessRandom, arc4random } from './engine/nativerng.js';
 import { Gfx } from './engine/gfx.js';
 import { Audio2 } from './engine/audio.js';
 import { initSpineKit, buildPlayerSkeleton, SpineActor } from './engine/spinekit.js';
 SpineActor.sound = n => Audio2.play(n, 0.7);
+SpineActor.rand = n => arc4random() % n;   // UnitNode::onAnimationEvent sound pick (arc4random)
 import { UI } from './ui/ui.js';
 import './ui/panels.js';
 import { Tower } from './game/tower.js';
