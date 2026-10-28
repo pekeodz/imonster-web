@@ -437,9 +437,8 @@ export class Tower {
     let best = null, bestD = Infinity;
     for (const u of this.units) {
       if (!u || !u.alive || u.isHero || u.isPet || !u.actor) continue;
-      // Keep discovery/visibility gameplay intact: only a monster that is already
-      // render-visible can be targeted through its sprite hit area.
-      if (!this.revealed[this.idx(u.x, u.y)]) continue;
+      // SOURCE-EXACT visual: monsters for the floor already exist from floor creation
+      // and are visible from the start; do not gate sprite targeting by revealed.
       const scale = Math.max(0.75, Math.abs(u.baseScale || 1));
       const dx = wx - u.wx, dy = wy - u.wy;
       const halfW = 52 * scale;
@@ -936,7 +935,8 @@ export class Tower {
   }
   drawUnit(u) {
     if (!u.actor) return;
-    if (!u.isHero && !u.isPet && !this.revealed[this.idx(u.x, u.y)]) return;
+    // SOURCE-EXACT visual: monsters are rendered from the start of the floor.
+    // Keep revealed/seen only as separate gameplay/script state.
     const sk = u.actor.skeleton;
     sk.x = u.wx; sk.y = u.wy;
     const base = u.baseScale || 1;
