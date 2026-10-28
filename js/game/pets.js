@@ -9,6 +9,9 @@ export const PET_NAMES = { 100000: 'Lina', 100001: 'Ally', 100002: 'Stanley', 10
 export const PET_PRICE = { 100000: 0, 100001: 15000, 100002: 30000, 100003: 50000, 100004: 80000, 100005: 120000 };
 const STAT_KEYS = { max_hp: 'Life', max_mp: 'Mana', defense: 'Defense', min_atk: 'MinDam', max_atk: 'MaxDam', fire_atk: 'FireDam', cold_atk: 'ColdDam', light_atk: 'LightDam', poison_atk: 'PoisonDam' };
 
+// Native Pet::copyTemplateData: int stat -> float32, multiply by float32 pet factor, then fcvtzs (truncate toward zero).
+const petMulTrunc = (stat, factor) => Math.trunc(Math.fround(Math.fround(+stat || 0) * Math.fround(+factor || 0)));
+
 export function petRec(id) { return DB.henchman.get(+id); }
 export function petName(id) { return PET_NAMES[id] || ('Pet ' + id); }
 export function petIcon(id) { return `assets/img/icon/pet-${id}.webp`; }
@@ -19,9 +22,10 @@ export function petModel(id, star) { const r = petRec(id); const m = String(star
 
 export function petStats(id, pd) {
   const r = petRec(id), row = statRow(pd.star, pd.lv);
-  const s = { type: 'Monster', lv: P.data.level, isPet: true };
-  for (const k in STAT_KEYS) s[k] = Math.round((row[STAT_KEYS[k]] || 0) * (+r[STAT_KEYS[k]] || 0));
-  if (s.max_atk < s.min_atk) s.max_atk = s.min_atk;
+  // Native Pet::getFinLevel() returns the pet's own stored level, not the Hero level.
+  const s = { type: 'Monster', lv: pd.lv | 0, isPet: true };
+  for (const k in STAT_KEYS) s[k] = petMulTrunc(row[STAT_KEYS[k]], r[STAT_KEYS[k]]);
+  // Do not normalize/swap min/max here: native copyTemplateData stores both independently.
   Object.assign(s, { hit: 95, dodge: 0, critical: 8, crit_dam: 50, fire_res: 0, cold_res: 0, light_res: 0, poison_res: 0, fin_atk_speed: 100, raw_atk_speed: 100 });
   s.avg = (s.min_atk + s.max_atk) / 2 + (s.fire_atk + s.cold_atk + s.light_atk + s.poison_atk) / 2;
   return s;
