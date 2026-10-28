@@ -122,25 +122,93 @@ export function nextInfo(pd) {
   return { exp: +row.NextExp || 0, gold: +row.NextGold || 0 };
 }
 export function feedValue(it) {
-  if (!it.eq) return 0;
-  const r = itemRecord(it); const v = Lua.call('CalPetExpFromItem', { type: +r.Type, quality: it.q });
+  if (!it?.eq) return 0;
+  const r = itemRecord(it);
+  const v = Lua.call('CalPetExpFromItem', { type: +r.Type, quality: it.q });
   return v ? (v[0] | 0) : 0;
 }
+
+// Native Pet::getLevelUpExp(level): row ID = star * 1000 + level, returns NextExp.
+export function petLevelUpExp(pd, lv = pd.lv) {
+  normalizePet(pd);
+  return +(statRow(pd.star, lv)?.NextExp || 0);
+}
+
+// Native Pet::getLevelUpGold(level): row ID = star * 1000 + level, returns NextGold.
+export function petLevelUpGold(pd, lv = pd.lv) {
+  normalizePet(pd);
+  return +(statRow(pd.star, lv)?.NextGold || 0);
+}
+
+// Native checkUpgradePet: 1..10 foods, pet must be below the star level cap,
+// and the pet's current level may not be greater than the Hero's current level.
+// Upgrade gold is current-level NextGold multiplied by the number of selected foods.
+export function petUpgradeInfo(id, foods) {
+  const pd = normalizePet(P.data.pets?.[id]);
+  if (!pd) return { error: 'Không sở hữu thú cưng này' };
+  const list = Array.isArray(foods) ? foods : [];
+  if (pd.lv >= capLevel(pd)) return { error: pd.star >= 5 ? 'Đã đạt cấp tối đa' : 'Pet đã chạm giới hạn cấp, hãy tiến hóa trước' };
+  if ((pd.lv | 0) > (P.data.level | 0)) return { error: 'Cấp thú cưng đang cao hơn cấp nhân vật' };
+  if (!list.length) return { error: 'Chưa chọn trang bị' };
+  if (list.length > 10) return { error: 'Chỉ được chọn tối đa 10 món' };
+  let exp = 0;
+  for (const it of list) exp += feedValue(it);
+  const gold = petLevelUpGold(pd) * list.length;
+  if ((P.data.gold | 0) < gold) return { error: 'Không đủ vàng', exp, gold };
+  return { exp, gold, count: list.length };
+}
+
+// Native Pet::addExp: add all food EXP first, then repeatedly consume the current
+// level's NextExp while it is >= 1. If the next row returns 0, leftover EXP is cleared.
+export function petAddExp(pd, amount) {
+  normalizePet(pd);
+  const oldLv = pd.lv | 0;
+  let lv = oldLv;
+  let exp = (pd.exp | 0) + (amount | 0);
+  for (;;) {
+    const need = petLevelUpExp(pd, lv);
+    if (need < 1 || exp < need) {
+      pd.exp = need === 0 ? 0 : exp;
+      break;
+    }
+    lv++;
+    exp -= need;
+  }
+  pd.lv = lv;
+  return { oldLv, newLv: lv, gainedLevels: lv - oldLv, exp: pd.exp | 0 };
+}
+
+// Native feedbackPetUpgrade: validate, remove every selected equipment item,
+// subtract gold, then apply the summed EXP in one Pet::addExp call.
+export function upgradePetFoods(id, foods) {
+  const info = petUpgradeInfo(id, foods);
+  if (info.error) return info;
+  const pd = normalizePet(P.data.pets[id]);
+  const selected = [...foods];
+  for (const it of selected) removePetFoodItem(it);
+  P.data.gold -= info.gold;
+  const lv = petAddExp(pd, info.exp);
+  return { ...info, ...lv };
+}
+
+function removePetFoodItem(it) {
+  // Equipment instances are unique in the web save; native removes each selected item once.
+  const inv = P.data.inventory || [];
+  const i = inv.findIndex(x => x === it || (it.uid != null && x.uid === it.uid));
+  if (i >= 0) inv.splice(i, 1);
+}
+
+// Evolve remains a separate native action from Pet Upgrade.
 export function levelUp(id) {
   const pd = normalizePet(P.data.pets[id]); const n = nextInfo(pd);
   if (n.max) return 'Đã tối đa';
+  if (!n.evolve) return 'Hãy cho thú cưng ăn trang bị để nhận EXP';
   if (P.data.gold < n.gold) return 'Không đủ vàng';
-  if (n.evolve) {
-    if ((pd.gene | 0) < n.gene) return `Không đủ gene (${pd.gene | 0}/${n.gene})`;
-    // Native feedbackPetEvolve: subtract NextGold + required gene count, then star += 1; level is preserved.
-    P.data.gold -= n.gold;
-    pd.gene = (pd.gene | 0) - n.gene;
-    pd.star++;
-    return null;
-  }
-  // Existing web level-up/feed flow remains until PetUpgradeView/checkUpgradePet is fully ported.
-  if (pd.exp < n.exp) return 'Chưa đủ kinh nghiệm';
-  P.data.gold -= n.gold; pd.exp -= n.exp; pd.lv++; return null;
+  if ((pd.gene | 0) < n.gene) return `Không đủ gene (${pd.gene | 0}/${n.gene})`;
+  P.data.gold -= n.gold;
+  pd.gene = (pd.gene | 0) - n.gene;
+  pd.star++;
+  return null;
 }
 
 // ---- runtime in the tower

@@ -8,7 +8,7 @@ import { P, stats, save, addItem, removeItem, addExp } from '../game/profile.js'
 import { itemName, itemIcon, itemQuality, itemRecord, attrText, QUALITY_COLORS, makeEquip, makeItem, makeAny, toLuaEqu, iconUrl, resolveDrop } from '../game/items.js';
 import { Modes, HARD_UNLOCK_FLOOR, LAB_UNLOCK_FLOOR, FASHION_PRICE, fashionRows, fashionSlot } from '../game/modes.js';
 import { Daily, BP_TIERS } from '../game/daily.js';
-import { PET_PRICE, petName, petIcon, petStats, petSkills, petSkillDesc, addPet, capLevel, nextInfo, feedValue, levelUp, petRec, normalizePet } from '../game/pets.js';
+import { PET_PRICE, petName, petIcon, petStats, petSkills, petSkillDesc, addPet, capLevel, nextInfo, feedValue, levelUp, petRec, normalizePet, petLevelUpExp, petUpgradeInfo, upgradePetFoods } from '../game/pets.js';
 import { GEM, isGem, socketCount, gemAttrs, inlayCost, inlay, unsocket, breakupResult, breakup, knownRecipes, learnRecipe, recipeInputs, countItem, canCraft, recipeCost, craft, CATEGORY_VI } from '../game/craft.js';
 import { resetSkills } from '../game/skills.js';
 import { story } from '../game/story.js';
@@ -118,11 +118,13 @@ Object.assign(UI.prototype, {
         else btns.append(h('button', { class: 'btn', onclick: () => { p.petActive = null; save(); render(); } }, 'Để ở trại'));
         const n = nextInfo(pd);
         if (n.max) btns.append(h('span', { class: 'pill' }, 'Đã tối đa'));
-        else {
-          const label = n.evolve ? [`Tiến hóa (Gene ${fmt(pd.gene || 0)}/${fmt(n.gene)}) `, gold(n.gold)] : [`Lên cấp (${fmt(pd.exp)}/${fmt(n.exp)} EXP) `, gold(n.gold)];
+        else if (n.evolve) {
+          const label = [`Tiến hóa (Gene ${fmt(pd.gene || 0)}/${fmt(n.gene)}) `, gold(n.gold)];
           btns.append(h('button', { class: 'btn', onclick: () => { const e = levelUp(sel); if (e) this.toast(e); else { Audio2.play('levelup-2'); save(); render(); } } }, ...label));
+        } else {
+          btns.append(h('span', { class: 'pill' }, `EXP ${fmt(pd.exp)}/${fmt(petLevelUpExp(pd))}`));
+          btns.append(h('button', { class: 'btn small', onclick: () => this.feedPet(sel, render) }, 'Cho ăn trang bị'));
         }
-        btns.append(h('button', { class: 'btn small', onclick: () => this.feedPet(sel, render) }, 'Cho ăn trang bị'));
       }
       box.append(btns);
       box.append(h('p', { class: 'center muted', style: { fontSize: 'calc(18*var(--u))' } }, `Gene: ${fmt(pd.gene || 0)} · Nhận trùng cùng thú cưng sẽ +1 Gene. Pet đạt Lv.${capLevel(pd)} mới có thể tiến hóa.`));
@@ -131,17 +133,51 @@ Object.assign(UI.prototype, {
     render();
   },
   feedPet(id, after) {
-    const p = P.data; const pd = p.pets[id];
+    const p = P.data; const pd = normalizePet(p.pets[id]);
     const panel = h('div', { class: 'panel inv pop' }); const m = this.modal(panel, after);
+    const selected = new Set();
+    const foods = () => p.inventory.filter(it => selected.has(it.uid));
     const render = () => {
       panel.innerHTML = '';
-      header(this, panel, m, `Cho ${petName(id)} ăn`, h('span', { class: 'pill' }, `EXP ${fmt(pd.exp)}`));
+      const picked = foods();
+      const info = picked.length ? petUpgradeInfo(id, picked) : { exp: 0, gold: 0 };
+      header(this, panel, m, `Cho ${petName(id)} ăn`, h('span', { class: 'pill' }, `EXP ${fmt(pd.exp)}/${fmt(petLevelUpExp(pd))}`));
       const list = p.inventory.filter(it => it.eq);
       const grid = h('div', { class: 'baggrid' });
-      for (const it of list) { const v = feedValue(it); grid.append(h('button', { class: 'slot q' + it.q, onclick: () => { removeItem(it.uid); pd.exp += v; Audio2.play('ui-020'); render(); } }, h('img', { src: itemIcon(it) }), h('span', { class: 'n' }, '+' + v))); }
+      for (const it of list) {
+        const v = feedValue(it), on = selected.has(it.uid);
+        grid.append(h('button', {
+          class: 'slot q' + it.q + (on ? ' sel' : ''),
+          onclick: () => {
+            if (on) selected.delete(it.uid);
+            else if (selected.size >= 10) return this.toast('Chỉ được chọn tối đa 10 món');
+            else selected.add(it.uid);
+            render();
+          }
+        }, h('img', { src: itemIcon(it) }), h('span', { class: 'n' }, '+' + v)));
+      }
       if (!list.length) panel.append(h('p', { class: 'center' }, 'Không có trang bị trong túi.'));
-      panel.append(h('div', { class: 'row', style: { justifyContent: 'center', marginBottom: 'calc(8*var(--u))' } },
-        h('button', { class: 'btn small', onclick: () => { let n = 0; for (const it of p.inventory.filter(x => x.eq && x.q <= 2)) { pd.exp += feedValue(it); removeItem(it.uid); n++; } this.toast(n ? `Đã cho ăn ${n} món` : 'Không có đồ trắng/xanh'); render(); } }, 'Cho ăn đồ trắng + xanh')), grid);
+      const summary = h('div', { class: 'col', style: { gap: 'calc(6*var(--u))', marginBottom: 'calc(8*var(--u))' } },
+        h('div', { class: 'center' }, `Đã chọn: ${picked.length}/10 · EXP nhận: +${fmt(info.exp || 0)} · Chi phí: ${fmt(info.gold || 0)} vàng`),
+        info.error && picked.length ? h('div', { class: 'center muted' }, info.error) : null,
+        h('div', { class: 'row', style: { justifyContent: 'center', flexWrap: 'wrap' } },
+          h('button', { class: 'btn small', onclick: () => {
+            selected.clear();
+            for (const it of p.inventory) {
+              if (!it.eq || it.q > 2 || selected.size >= 10) continue;
+              selected.add(it.uid);
+            }
+            render();
+          } }, 'Chọn tối đa 10 đồ trắng + xanh'),
+          h('button', { class: 'btn green', disabled: !picked.length || info.error ? true : null, onclick: () => {
+            const r = upgradePetFoods(id, picked);
+            if (r.error) return this.toast(r.error);
+            selected.clear();
+            Audio2.play(r.gainedLevels ? 'levelup-2' : 'ui-020');
+            this.toast(r.gainedLevels ? `+${fmt(r.exp)} EXP · Pet tăng ${r.gainedLevels} cấp` : `+${fmt(r.exp)} EXP`);
+            save(); render();
+          } }, 'Nâng cấp ', gold(info.gold || 0))));
+      panel.append(summary, grid);
     };
     render();
   },
