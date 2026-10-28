@@ -430,12 +430,37 @@ export class Tower {
   }
 
   // ---------------------------------------------------------------- input
+  // Hit-test the visible monster sprite before treating a tap as a ground-tile tap.
+  // A Spine monster is anchored near its feet and its body extends mostly upward,
+  // so a tile-only lookup misses taps on the upper/back part of the artwork.
+  monsterAtWorld(wx, wy) {
+    let best = null, bestD = Infinity;
+    for (const u of this.units) {
+      if (!u || !u.alive || u.isHero || u.isPet || !u.actor) continue;
+      // Keep discovery/visibility gameplay intact: only a monster that is already
+      // render-visible can be targeted through its sprite hit area.
+      if (!this.revealed[this.idx(u.x, u.y)]) continue;
+      const scale = Math.max(0.75, Math.abs(u.baseScale || 1));
+      const dx = wx - u.wx, dy = wy - u.wy;
+      const halfW = 52 * scale;
+      const belowFeet = 28 * scale;
+      const aboveFeet = 145 * scale;
+      if (Math.abs(dx) > halfW || dy < -belowFeet || dy > aboveFeet) continue;
+      const d = Math.abs(dx) + Math.abs(dy) * 0.35;
+      if (d < bestD) { best = u; bestD = d; }
+    }
+    return best;
+  }
+
   onTap(sx, sy) {
     if (this.dead || !this.hero || this.busy) return;
     const w = this.gfx.screenToWorld(sx, sy);
     const tx = Math.floor(w.x / T), ty = Math.floor(-w.y / T);
     if (tx < 0 || ty < 0 || tx >= this.grid.w || ty >= this.grid.h) return;
-    if (!this.revealed[this.idx(tx, ty)]) return;
+    const spriteMon = this.monsterAtWorld(w.x, w.y);
+    // Keep revealed as gameplay state, but do not reject a tap that actually hit
+    // the visible body of a monster whose artwork overlaps another tile.
+    if (!spriteMon && !this.revealed[this.idx(tx, ty)]) return;
     if (this.teleportMode) {
       this.teleportMode = false;
       const cost = +DB.skill.get(108001).ManaCost || 0;
@@ -445,7 +470,7 @@ export class Tower {
       }
     }
     const h = this.hero;
-    const mon = this.unitAt(tx, ty) || this.unitAt(tx, Math.floor((-w.y + 40) / T)); // allow tapping a body that overlaps tile above
+    const mon = spriteMon || this.unitAt(tx, ty) || this.unitAt(tx, Math.floor((-w.y + 40) / T));
     if (this.fight) {
       if (mon && mon === this.fight.mon) return;
       // AttackBehavior::msg_C_ESCAPE_BATTLE: 2 s escape (the monster keeps hitting), then the monster fully recovers
@@ -827,13 +852,13 @@ export class Tower {
     const sheet = 'map/tile-' + this.tileset, pre = this.tileset + '-';
     // floors
     for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
-      if (!g.isFloor(x, y) || !this.revealed[this.idx(x, y)]) continue;
+      if (!g.isFloor(x, y)) continue;
       const fs = floorStyle(g, x, y);
       if (fs) gfx.drawFrame(sheet, pre + fs, x * T, -(y + 1) * T, { ax: 0, ay: 0 });
     }
     this.orna?.drawTiles(gfx);
     // exit stairs
-    if (this.pass && this.revealed[this.idx(this.pass[0], this.pass[1])]) {
+    if (this.pass) {
       gfx.drawTex(gfx.tex('map/floor'), this.pass[0] * T + 50, -(this.pass[1] * T + 50));
     }
     // fx under units
@@ -846,8 +871,8 @@ export class Tower {
     for (let y = y0; y <= y1; y++) {
       for (let x = x0; x <= x1; x++) {
         if (g.get(x, y) !== WALL) continue;
-        // only draw walls next to revealed floor
-        if (!this.wallVisible(x, y)) continue;
+        // SOURCE-EXACT visual: map geometry is fully lit; discovery state must
+        // not decide whether a wall is rendered.
         const ws = wallStyle(g, x, y);
         if (ws) gfx.drawFrame(sheet, pre + ws, x * T, -y * T, { ax: 0, ay: 1 });
       }
@@ -855,7 +880,7 @@ export class Tower {
       for (const f of this.flags || []) if (f.y === y) this.drawFlag(f);
       if (this.traps.list.length) this.traps.draw(gfx, this.time, this.revealed, (a, b) => this.idx(a, b), y);
       for (const o of this.objects) {
-        if (o.y !== y || !this.revealed[this.idx(o.x, o.y)]) continue;
+        if (o.y !== y) continue;
         this.drawObject(o);
       }
       if (this.pet && Math.round(-(this.pet.unit.wy + 30) / T - 0.5) === y) this.drawUnit(this.pet.unit);
@@ -867,12 +892,9 @@ export class Tower {
       gfx.drawTex(gfx.tex('ui/effect-1-2-6'), f.x, f.y, { scale: 0.3 + k * 0.7, color: c });
       gfx.drawTex(gfx.tex('ui/effect-1-4-1'), f.x, f.y, { scale: 1.5 + k, color: rgba(1, 1, 1, 1 - k) });
     }
-    // unexplored tiles are simply not drawn: the background shows through, like the original
-    // lighting layer around the hero (mist on the first floors, dark vignette + coloured glow deeper in the tower)
-    if (this.maskFx) {
-      const s = this.maskFx.seq.normal || Object.values(this.maskFx.seq)[0];
-      drawCCB(gfx, this.maskFx, { sid: s[0], t: s[1] > 0 ? this.time % s[1] : 0, root: [1, 0, 0, 1, this.hero.wx, this.hero.wy + 40], em: this.fxEm.mask, now: this.time, cover: { x0: vx0 - 10, x1: vx1 + 10, y0: vy0 - 10, y1: vy1 + 10 } });
-    }
+    // SOURCE-EXACT visual: the original map is fully lit.  Keep revealed/seen
+    // for gameplay discovery, monster visibility, traps and scripts, but do not
+    // apply the web-only darkness/fog mask to the map renderer.
     gfx.end();
   }
   wallVisible(x, y) {

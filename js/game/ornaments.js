@@ -128,9 +128,9 @@ export class Ornaments {
     return { sheets: [...s].filter(k => DB.frames[k]), tex: [...tex] };
   }
   visible(it) {
-    const t = this.t;
-    for (let i = 0; i < it.h; i++) for (let j = 0; j < it.w; j++) { const x = it.x + j, y = it.y - i; if (x >= 0 && y >= 0 && x < t.grid.w && y < t.grid.h && (t.revealed[t.idx(x, y)] || t.wallVisible(x, y))) return true; }
-    return false;
+    // SOURCE-EXACT visual: ornaments belong to map geometry and remain visible
+    // independently of the gameplay revealed/seen state.
+    return !!it;
   }
   drawTiles(gfx) { for (const it of this.tiles) if (this.visible(it)) this.drawItem(gfx, it); }
   drawRow(gfx, y) { const l = this.byRow?.get(y); if (l) for (const it of l) if (this.visible(it)) this.drawItem(gfx, it); }
