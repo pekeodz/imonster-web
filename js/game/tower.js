@@ -471,9 +471,10 @@ export class Tower {
     const h = this.hero;
     const mon = spriteMon || this.unitAt(tx, ty) || this.unitAt(tx, Math.floor((-w.y + 40) / T));
     if (this.fight) {
-      if (mon && mon === this.fight.mon) return;
-      // AttackBehavior::msg_C_ESCAPE_BATTLE: 2 s escape (the monster keeps hitting), then the monster fully recovers
-      this.combat.escape();
+      // SOURCE-EXACT input: escape is a dedicated command/button in the original
+      // (escape_button -> GameController::feedbackEscape -> C_ESCAPE_BATTLE).
+      // A tap on the map while fighting must not implicitly escape or start movement.
+      // Keep the current battle/target locked until it ends or an explicit escape command is used.
       return;
     }
     if (mon) { this.goTo(mon.x, mon.y, { attack: mon }); return; }
