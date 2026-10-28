@@ -66,7 +66,7 @@ def parse(data):
         cls = cs()
         if js: cs()
         mt = r.int()
-        if mt: cs()
+        var = cs() if mt else ''
         anim = {}
         for _ in range(r.int()):
             sid = r.int(); props = {}
@@ -103,7 +103,7 @@ def parse(data):
             else: raise Exception('prop type %d %s at %d' % (t, name, r.p))
             props[name] = v
         kids = [node() for _ in range(r.int())]
-        return {'cls': cls, 'props': props, 'anim': anim, 'kids': kids}
+        return {'cls': cls, 'var': var, 'props': props, 'anim': anim, 'kids': kids}
     root = node()
     return {'ver': ver, 'seqs': seqs, 'auto': auto, 'root': root}
 

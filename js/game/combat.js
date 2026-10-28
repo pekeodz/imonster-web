@@ -4,7 +4,8 @@ import { DB, S } from '../engine/db.js';
 import { Lua } from '../engine/lua.js';
 import { Audio2 } from '../engine/audio.js';
 import { P, stats } from './profile.js';
-import { skillEffects, heroPassives, addBuff, activeBuffs, buffMods, applyAttrEffects, skillLevel, combatSlots, pendingUse, ELEM_COLOR, invalidatePassives } from './skills.js';
+import { applyBuffLayer, perHitAttack, heroFinMPCost, heroFinCooldown } from './stats.js';
+import { skillEffects, heroPassives, addBuff, activeBuffs, buffMods, skillLevel, combatSlots, pendingUse, ELEM_COLOR, invalidatePassives } from './skills.js';
 
 const ELEM_RES = [null, 'fire_res', 'cold_res', 'light_res', 'poison_res'];
 const ELEM_ATK = ['phy', 'fire_atk', 'cold_atk', 'light_atk', 'poison_atk'];
@@ -18,6 +19,27 @@ export const AFFIX_NAMES = {
   200027: 'Hộ thuẫn', 200028: 'Đốt mana', 200029: 'Mãnh kích', 200030: 'Đóng băng', 200031: 'Chúc phúc', 200032: 'Nguyền rủa',
 };
 
+// ---------------- equipment specialization runtime (EquipEffect_<id> classes in libMyGame.so)
+// Only reversed classes are implemented; every other spec id is stored on the item but has NO runtime effect yet (TODO).
+export function heroSpecs() {
+  const out = [];
+  for (const it of Object.values(P.data?.equipped || {})) for (const sp of it?.spec || []) out.push(sp);
+  return out;
+}
+const specState = {};
+// beforeDamageCalculation(attacker, target, ..., DamageInfo{mode})
+function specBefore(C, src, tgt, mode) {
+  for (const sp of heroSpecs()) {
+    // EquipEffect_221 (DK Cobra Stick): mode==0 and target curHP >= target finMaxHP -> arm
+    if (sp.id === 221 && mode === 0 && C.hp(tgt) >= C.stats(tgt).max_hp) specState[221] = true;
+  }
+}
+// onHitEnemy(attacker, target, ...)
+function specOnHit(C, src, tgt) {
+  // EquipEffect_221: armed -> clear, target gets SkillShortEffect(2.0s, SkillFaint)
+  if (specState[221]) { specState[221] = false; addBuff(tgt, { type: 'faint', duration: 2 }, C.now); C.t.floatText(tgt.wx, tgt.wy + 200, 'Choáng', '#9fe3ff', 0.9); }
+}
+
 export class Combat {
   constructor(tower) { this.t = tower; this.now = 0; this.timers = []; }
   get hero() { return this.t.hero; }
@@ -29,9 +51,12 @@ export class Combat {
   stats(u) {
     if (u.isHero) return stats();
     let s = { ...u.st };
+    // Unit::calAttribWithBuffs (one pass over permanent + active effects)
     const effs = [...(u.permAttr || []), ...activeBuffs(u, this.now).filter(b => b.type === 'attrib benefit' || b.type === 'attrib gain')];
-    if (effs.length) s = applyAttrEffects(s, effs);
-    const sp = buffMods(u, this.now).speed; if (sp) s.fin_atk_speed *= (1 + sp / 100);
+    if (effs.length) s = applyBuffLayer(s, effs);
+    // Monster::getFinMin/MaxAttack + 4 elemental attack getters: per-hit scaling by MonsterTemplate.AtkTimes
+    if (!u.isPet && s.atk_times > 1) for (const k of ['min_atk', 'max_atk', 'fire_atk', 'cold_atk', 'light_atk', 'poison_atk']) s[k] = perHitAttack(s[k], s.atk_times);
+    const sp = buffMods(u, this.now).speed; if (sp) s.fin_atk_speed *= (1 + sp / 100);   // TODO VERIFY (speed-up buff path)
     return s;
   }
   // lua-facing table for a unit
@@ -163,8 +188,11 @@ export class Combat {
     if (src.isHero && this.t.pet) d.defense = Math.max(0, d.defense - this.t.pet.ignoreDef());
     const add = buffMods(src, this.now).addAtk;
     if (add) { a.min_atk += +add.physics || 0; a.max_atk += +add.physics || 0; a.fire_atk += +add.fire || 0; a.cold_atk += +add.cold || 0; a.light_atk += +add.light || 0; a.poison_atk += +add.poison || 0; }
+    // equipment specialization hooks: beforeDamageCalculation (normal attack)
+    if (src.isHero) specBefore(this, src, tgt, 0);
     const r = Lua.call('CalAttackDamage', a, d, !!opts.hit, !!opts.crit) || [];
     const [phy, fire, cold, light, poison, crit] = r;
+    if (phy != null || fire != null) { if (src.isHero) specOnHit(this, src, tgt); }
     if (phy == null && fire == null) {
       this.t.floatText(tgt.wx, tgt.wy + 110, 'Trượt', '#cfcfcf', 0.9);
       if (tgt.isHero && heroPassives().specials[300000]) { }
@@ -182,16 +210,25 @@ export class Combat {
   }
 
   // skill damage: raw value, element; uses defense / resist like the engine
+  // Unit::calSkillDamage (native): atk = max(0, val + hookAtk), def/res = max(0, target stat + hookDef)
+  //   physical: int(CalPhysicalDamage(lvA, atk, def));  element: int(CalEleDmg(atk, max(1,lvA), res, max(1,lvB)))
+  //   then int(CalCriticalDamage(force, dmg, attacker crit, attacker crit dmg))
   skillDamage(src, tgt, elem, val, opts = {}) {
     if (!tgt.alive) return 0;
     const a = this.lt(src), d = this.lt(tgt);
-    let v = +val || 0;
+    const atk = Math.max(0, Math.trunc(+val || 0));
+    // TODO VERIFY: passive 109002 (web-side "ignore def/res") stands in for the native beforeDamageCalculation hooks
     const ext = src.isHero ? (+(heroPassives().specials[109002]?.p1) || 0) / 100 : 0;
-    if (elem === 0) { const r = Lua.call('CalPhysicalDamage', a.lv, v, d.defense * (1 - ext)); v = r ? r[0] : v; }
-    else { const res = (d[ELEM_RES[elem]] || 0) * (1 - ext); v = v * (1 - Math.min(90, res) / 100); }
-    let crit = !!opts.crit;
-    if (!crit && src.isHero && Math.random() * 100 < (a.critical || 0) / 2) crit = true;
-    if (crit) v *= 1 + (a.crit_dam || 0) / 100;
+    let v;
+    if (elem === 0) {
+      const def = Math.max(0, Math.trunc((d.defense || 0) * (1 - ext)));
+      v = Math.trunc((Lua.call('CalPhysicalDamage', a.lv | 0, atk, def) || [0])[0] || 0);
+    } else {
+      const res = Math.max(0, Math.trunc((d[ELEM_RES[elem]] || 0) * (1 - ext)));
+      v = Math.trunc((Lua.call('CalEleDmg', atk, Math.max(1, a.lv | 0), res, Math.max(1, d.lv | 0)) || [0])[0] || 0);
+    }
+    const cr = Lua.call('CalCriticalDamage', !!opts.crit, v, a.critical | 0, a.crit_dam | 0) || [v, false];
+    v = Math.trunc(cr[0] || 0); const crit = !!cr[1];
     const parts = [0, 0, 0, 0, 0]; parts[elem] = v;
     return this.applyDamage(src, tgt, parts, 'skill', { crit, suck: opts.suck });
   }
@@ -300,15 +337,15 @@ export class Combat {
     h.skillCD ||= {};
     if ((h.skillCD[id] || 0) > this.now) { t.ui.toast('Kỹ năng đang hồi'); return; }
     const hs = this.stats(h);
-    let cost = +row.ManaCost || 0;
-    cost *= 1 + ((hs.mp_cost || 0) + (heroPassives().specials[109001] ? 25 : 0)) / 100;
-    cost = Math.round(cost);
+    let cost = heroFinMPCost(hs, +row.ManaCost || 0);                         // Hero::getFinMPCost
+    if (heroPassives().specials[109001]) cost = Math.round(cost * 1.25);        // TODO VERIFY (web-side special)
     if (this.mp(h) < cost) { t.ui.toast('Không đủ MP'); return; }
     const needsEnemy = !['102005'].includes(String(id)) && !(+row.Group === 19);
     if (!f && needsEnemy) { t.ui.toast('Chỉ dùng khi đang chiến đấu'); return; }
     if (buffMods(h, this.now).froze || buffMods(h, this.now).faint) return;
     this.setMp(h, this.mp(h) - cost);
-    let cd = +row.Cooldown || 1; cd *= Math.max(0.2, 1 + (hs.skill_cd || 0) / 100 - (+(heroPassives().specials[109000]?.p1) || 0) / 100);
+    let cd = heroFinCooldown(hs, +row.Cooldown || 0);                           // Hero::getFinSkillCooldown
+    if (heroPassives().specials[109000]) cd *= 1 - (+heroPassives().specials[109000].p1 || 0) / 100;   // TODO VERIFY (web-side special)
     h.skillCD[id] = this.now + cd; h.skillCDmax ||= {}; h.skillCDmax[id] = cd;
     const enemy = f?.mon || h;
     const effs = skillEffects(id, this.lt(h), this.lt(enemy), lv);

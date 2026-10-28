@@ -1,6 +1,6 @@
 // Player profile (persistent) + save/load (localStorage, optional Firebase cloud save).
 import { DB } from '../engine/db.js';
-import { makeEquip, makeItem, slotsForType, EQUIP_SLOTS } from './items.js';
+import { makeEquip, makeItem, slotsForType, EQUIP_SLOTS, ensureSpec } from './items.js';
 import { playerStats, expRow, MAX_LEVEL } from './stats.js';
 import { Cloud } from './cloud.js';
 
@@ -108,7 +108,12 @@ function migrate(p) {
   p.inventory ||= []; p.equipped ||= {}; p.skills ||= {}; p.stats ||= { kills: 0, deaths: 0, chests: 0 };
   p.settings ||= { music: 0.6, sound: 0.8, lang: 'en' };
   for (const s of EQUIP_SLOTS) if (p.equipped[s] === null) delete p.equipped[s];
+  // the original has one ring slot and 20-cell bag pages
+  if (p.equipped.ring2) { if (!p.equipped.ring1) p.equipped.ring1 = p.equipped.ring2; else p.inventory.push(p.equipped.ring2); delete p.equipped.ring2; }
+  if (p.equipped.offhand) { p.inventory.push(p.equipped.offhand); delete p.equipped.offhand; }
+  p.bagSize = Math.max(40, Math.ceil((p.bagSize || 40) / 20) * 20);
   p.diamond ||= 0; p.diaries ||= []; p.pets ||= {}; p.wardrobe ||= []; p.fashion ||= {}; p.maxFloorHard ||= 0; p.labBest ||= 0;
+  for (const it of [...p.inventory, ...Object.values(p.equipped), ...Object.values(p.equippedAlt || {})]) ensureSpec(it);
   if (!Object.keys(p.pets).length) { p.pets[100000] = { lv: 1, star: 1, exp: 0 }; p.petActive = 100000; } // Lina is free
 }
 export { migrate };

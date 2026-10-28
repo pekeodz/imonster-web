@@ -1,6 +1,7 @@
 // iMonster Classic: Hero Adventure — web remake. Boot + scene management.
 import { DB, loadDB, setLang } from './engine/db.js';
 import { Lua } from './engine/lua.js';
+import { Lrand, LSuccessRandom } from './engine/nativerng.js';
 import { Gfx } from './engine/gfx.js';
 import { Audio2 } from './engine/audio.js';
 import { initSpineKit, buildPlayerSkeleton, SpineActor } from './engine/spinekit.js';
@@ -11,7 +12,8 @@ import { Tower } from './game/tower.js';
 import { Cloud } from './game/cloud.js';
 import * as Profile from './game/profile.js';
 import { StoryHost, installStory, story } from './game/story.js';
-import { installSkillLua, skillHost, heroPassives, applyAttrEffects, applyHeroSpecials, activeBuffs, buffMods, invalidatePassives } from './game/skills.js';
+import { applyBuffLayer } from './game/stats.js';
+import { installSkillLua, skillHost, heroPassives, applyHeroSpecials, activeBuffs, buffMods, invalidatePassives } from './game/skills.js';
 import { Modes, lookEquips, LAB_START } from './game/modes.js';
 import { Daily } from './game/daily.js';
 import { loadGemTable } from './game/craft.js';
@@ -48,6 +50,7 @@ class Game {
     if (w / h < ar && w / h > 0.4) { sw = w; sh = h; } // tall phones: fill, extend view vertically
     const u = sw / VW;
     document.documentElement.style.setProperty('--u', u + 'px');
+    document.documentElement.style.setProperty('--dh', String(sh / u)); document.documentElement.style.setProperty('--us', String(u));
     this.stage.style.width = sw + 'px'; this.stage.style.height = sh + 'px';
     this.viewW = VW; this.viewH = sh / u;
     this.gfx.resize(sw, sh, Math.min(2, window.devicePixelRatio || 1));
@@ -61,10 +64,11 @@ class Game {
       this.ui.progress(0.65, 'Khởi động công thức gốc (Lua)...');
       await Lua.init(['define', 'common', 'formular', 'skill', 'monsterai', 'story', 'subplots', 'encounter', 'main'], {
         ...StoryHost,
-        randi: (a, b) => { a = Math.floor(a); b = Math.floor(b); return b <= a ? a : a + Math.floor(Math.random() * (b - a + 1)); },
-        rand: () => Math.random(),
+        // sw.randi / sw.rand -> ScriptExecutor::Lrand (raw: receives the Lua stack, see Lua.rawHost)
+        randi: Lua.raw(Lrand),
+        rand: Lua.raw(Lrand),
         LocalString: k => DB.str[k] || k,
-        SuccessRandom: p => Math.random() * 100 < p,
+        SuccessRandom: Lua.raw(LSuccessRandom),
         ...skillHost,
       });
       installSkillLua();
@@ -92,20 +96,19 @@ class Game {
   heroStatHook(s) {
     const p = P.data; if (!p) return s;
     const pv = heroPassives({ ...s, cur_hp: p.hp ?? s.max_hp, cur_mp: p.mp ?? s.max_mp });
-    applyAttrEffects(s, pv.stat);
+    const t = this.tower; const h = t?.hero;
+    // Unit::calAttribWithBuffs: passive effects + active skill buffs summed in ONE pass, then applied once
+    const effs = [...pv.stat];
+    if (h?.buffs?.length) effs.push(...activeBuffs(h, t.combat.now).filter(b => b.type === 'attrib benefit' || b.type === 'attrib gain'));
+    applyBuffLayer(s, effs);
+    // TODO VERIFY: everything below is web-side (not yet reversed); kept as before
     const w = p.equipped.weapon; const wt = w ? +DB.equip.get(w.id)?.Type : 0;
     applyHeroSpecials(s, pv.specials, { weaponType: wt });
-    const t = this.tower; const h = t?.hero;
     if (t?.pet) t.pet.heroStat(s);
-    if (h?.buffs?.length) {
-      const now = t.combat.now;
-      const effs = activeBuffs(h, now).filter(b => b.type === 'attrib benefit' || b.type === 'attrib gain');
-      if (effs.length) applyAttrEffects(s, effs);
-      const sp = buffMods(h, now).speed; if (sp) s.fin_atk_speed *= 1 + sp / 100;
-      // Fierce Battle (107100): attack speed up to p1% by lost HP
-    }
+    if (h?.buffs?.length) { const sp = buffMods(h, t.combat.now).speed; if (sp) s.fin_atk_speed *= 1 + sp / 100; }
+    // Fierce Battle (107100): attack speed up to p1% by lost HP
     if (pv.specials[107100] && p.hp != null) s.fin_atk_speed *= 1 + (+pv.specials[107100].p1 || 0) / 100 * Math.max(0, 1 - p.hp / s.max_hp);
-    s.fin_atk_speed = Math.round(s.fin_atk_speed);
+    s.fin_atk_speed = Math.trunc(s.fin_atk_speed);
     return s;
   }
   // camp/main background (750x1334 art, drawn centered + cover) -> stage percentage
@@ -218,6 +221,7 @@ class Game {
       const sc = this.scene === 'create' ? 2.4 : 1.5;
       sk.scaleX = sk.scaleY = sc;
       sk.x = this.scene === 'create' ? 0 : 40; sk.y = this.scene === 'create' ? 60 : -this.viewH / 2 + 250;
+      if (this.uiFocus && this.scene === 'camp') { sk.x = 0; sk.y = this.uiFocus.y - 75; sk.scaleX = sk.scaleY = 1.25; }
       sk.updateWorldTransform();
       g.drawSkeleton(sk);
     }

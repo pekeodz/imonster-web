@@ -214,3 +214,23 @@ select{font:inherit;font-weight:700;padding:calc(8*var(--u));border-radius:calc(
 .diarypage{max-height:80%;display:flex;flex-direction:column}
 .diarytext{overflow-y:auto;font-size:calc(22*var(--u));line-height:1.45;background:#fff6;border-radius:calc(12*var(--u));padding:calc(14*var(--u));font-family:Georgia,serif;color:#3a2410}
 .loadtip{position:absolute;left:8%;right:8%;bottom:12%;text-align:center;font-size:calc(22*var(--u));color:#f5e6c8;text-shadow:0 0 4px #000}
+/* ---- original CocosBuilder screens (js/ui/ccb.js) */
+@font-face{font-family:"ewmain";src:url(../assets/font/ew-main.ttf) format("truetype");font-display:swap;unicode-range:U+0020-007E,U+2000-206F,U+2190-21FF,U+25A0-27BF,U+3000-9FFF,U+FF00-FFEF}
+.ccb-stage{position:absolute;left:0;top:0;width:750px;height:calc(var(--dh,1334) * 1px);transform:scale(var(--us,0.5));transform-origin:0 0;pointer-events:none;overflow:hidden}
+.ccb-center{position:absolute;left:375px;bottom:calc(var(--dh,1334) * 0.5px);width:0;height:0}
+.ccb-root{position:absolute;left:0;bottom:0;width:0;height:0}
+.ccb-n{position:absolute;box-sizing:border-box}
+.ccb-img{position:absolute;background-repeat:no-repeat;pointer-events:none}
+.ccb-label{line-height:1.12;pointer-events:none}
+.ccb-btn{pointer-events:auto;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.ccb-btitle{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);white-space:nowrap;pointer-events:none}
+.ccb-disabled{filter:grayscale(1) brightness(.75)}
+.ccb-slot{position:absolute;left:0;bottom:0;width:0;height:0}
+#ui .ccb-stage{pointer-events:auto}
+.ccb-attrs{position:absolute;left:0;top:-322px;width:246px;height:322px;overflow-y:auto;font-family:"ewmain","Trebuchet MS",sans-serif;font-size:19px;color:#95714a;line-height:1.25;padding:2px 4px;box-sizing:border-box}
+.ccb-attr.base{color:#6b4a26;font-size:21px}.ccb-attr.aff{color:#3a8a2a}.ccb-attr.gem{color:#2a8aa0}.ccb-attr.up{color:#2f9d27}.ccb-attr.down{color:#c0392b}.ccb-attr.hint{color:#b08a5a;font-size:16px;margin-top:6px}
+#ui .ccb-stage *{pointer-events:none}
+#ui .ccb-stage .ccb-btn,#ui .ccb-stage .ccb-attrs{pointer-events:auto}
+.forgegrid{display:grid;grid-template-columns:1fr 1fr;gap:calc(14*var(--u))}
+.forgebtn{display:flex;flex-direction:column;align-items:center;gap:calc(6*var(--u));padding:calc(18*var(--u)) calc(10*var(--u));border-radius:calc(16*var(--u));background:linear-gradient(#e9cf98,#c9a466);border:calc(3*var(--u)) solid #8a5a2a;color:#3a2410;font-weight:800;font-size:calc(26*var(--u));box-shadow:0 calc(4*var(--u)) 0 #6b4423}
+.forgebtn span{font-size:calc(18*var(--u));font-weight:600;opacity:.8;text-align:center}

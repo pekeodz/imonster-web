@@ -1,15 +1,18 @@
 // Items & equipment: generation (using original Lua formulas), drops, naming.
 import { DB, S } from '../engine/db.js';
 import { Lua } from '../engine/lua.js';
+import { arc4random } from '../engine/nativerng.js';
 
 export const QUALITY_COLORS = { 0: '#ddd', 1: '#f2f2f2', 2: '#5ab4ff', 3: '#c77dff', 4: '#ffae2b', 5: '#ff4d4d' };
-export const EQUIP_SLOTS = ['weapon', 'offhand', 'helm', 'chest', 'glove', 'cuish', 'boot', 'necklace', 'ring1', 'ring2', 'spirit'];
+// release build: 9 slots (Weapon, Helm, Chest, Glove, Cuish, Boot, Necklace, Ring, Spirit). Type 13/45 exist in the
+// type enum but no equip.csv row uses them, so they are not exposed as slots.
+export const EQUIP_SLOTS = ['weapon', 'helm', 'chest', 'glove', 'cuish', 'boot', 'necklace', 'ring1', 'spirit'];
 export const SLOT_NAMES_VI = { weapon: 'Vũ khí', offhand: 'Tay phụ', helm: 'Mũ', chest: 'Áo', glove: 'Găng', cuish: 'Quần', boot: 'Giày', necklace: 'Dây chuyền', ring1: 'Nhẫn', ring2: 'Nhẫn', spirit: 'Tinh linh' };
 export function slotsForType(t) {
   t = +t;
   if (t === 10 || t === 11 || t === 12) return ['weapon'];
-  if (t === 13 || t === 45) return ['offhand'];
-  return { 20: ['helm'], 21: ['chest'], 22: ['glove'], 23: ['cuish'], 24: ['boot'], 30: ['necklace'], 31: ['ring1', 'ring2'], 32: ['spirit'] }[t] || [];
+  if (t === 13 || t === 45) return [];   // not used by any release item
+  return { 20: ['helm'], 21: ['chest'], 22: ['glove'], 23: ['cuish'], 24: ['boot'], 30: ['necklace'], 31: ['ring1'], 32: ['spirit'] }[t] || [];
 }
 export const isEquipId = id => DB.equip.has(+id);
 let uidSeq = Date.now() % 1e6;
@@ -41,14 +44,38 @@ export function makeEquip(id, level, opts = {}) {
   const affix = [];
   for (const k of ['Affix1', 'Affix2', 'Affix3', 'Affix4', 'Affix5']) {
     if (r[k] === '' || r[k] == null) continue;
-    const opts = String(r[k]).split(';').filter(Boolean).map(Number);
-    const aid = opts[Math.floor(Math.random() * opts.length)];
-    if (!aid) continue;
-    const v = Lua.call('CalEquipmentAffix', equ, aid);
-    if (!v) continue;
-    affix.push({ a: aid, v: Math.round(v[0] ?? 1), v2: v[1] != null ? Math.round(v[1]) : undefined });
+    // options separated by ';'; one option may hold several affixes joined by ',' (e.g. "30,43;31,44")
+    // TODO VERIFY: native option pick (assumed uniform, arc4random() % n)
+    const opts = String(r[k]).split(';').filter(Boolean);
+    const pick = opts[arc4random() % opts.length];
+    for (const aid of String(pick).split(',').map(Number)) {
+      if (!aid) continue;
+      const v = Lua.call('CalEquipmentAffix', equ, aid);
+      if (!v) continue;
+      affix.push({ a: aid, v: Math.round(v[0] ?? 1), v2: v[1] != null ? Math.round(v[1]) : undefined });
+    }
   }
-  return { uid: newUid(), eq: 1, id: r.ID, q: equ.quality, lv: attrLv, spd: equ.attack_speed, base, affix, inte: 0 };
+  // Specialization: CalEquipmentSpecial(equID, specID) -> p1, p2 (keeps the 6 hard-coded overrides in formular.lua)
+  let spec = null;
+  if (r.Specialization !== '' && r.Specialization != null) {
+    const opts = String(r.Specialization).split(';').filter(Boolean);
+    const pick = opts[arc4random() % opts.length];                // TODO VERIFY: native pick
+    spec = [];
+    for (const sid of String(pick).split(',').map(Number)) {
+      if (!sid) continue;
+      const v = Lua.call('CalEquipmentSpecial', r.ID, sid) || [];
+      spec.push({ id: sid, p1: v[0] ?? null, p2: v[1] ?? null });
+    }
+  }
+  const it = { uid: newUid(), eq: 1, id: r.ID, q: equ.quality, lv: attrLv, spd: equ.attack_speed, base, affix, inte: 0 };
+  if (spec && spec.length) it.spec = spec;
+  return it;
+}
+// saves made before specialization was generated: roll it once (same path as makeEquip)
+export function ensureSpec(it) {
+  if (!it || !it.eq || it.spec !== undefined) return;
+  const r = DB.equip.get(+it.id); if (!r || r.Specialization === '' || r.Specialization == null) { it.spec = null; return; }
+  const n = makeEquip(it.id, it.lv); it.spec = n?.spec || null;
 }
 export function makeItem(id, n = 1) {
   const r = DB.item.get(+id); if (!r) return null;

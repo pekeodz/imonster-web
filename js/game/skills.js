@@ -128,7 +128,7 @@ export function heroPassives(baseStats) {
   passiveCache = out;
   return out;
 }
-// apply attrib effects (benefit = flat, gain = percent) to a stat object
+// DEPRECATED (wrong order: benefit before gain). Use applyBuffLayer in stats.js. Kept only for reference.
 export function applyAttrEffects(st, effs) {
   const gains = {};
   for (const e of effs) {

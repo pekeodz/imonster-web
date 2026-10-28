@@ -288,7 +288,7 @@ export class UI {
       panel.innerHTML = '';
       panel.append(h('button', { class: 'close', onclick: () => m.close() }), h('h2', {}, `${p.name} · Lv.${p.level}`));
       const eg = h('div', { class: 'equipgrid' });
-      for (const slot of ['weapon', 'offhand', 'helm', 'chest', 'glove', 'cuish', 'boot', 'necklace', 'ring1', 'ring2', 'spirit']) {
+      for (const slot of EQUIP_SLOTS) {
         const it = p.equipped[slot];
         eg.append(h('button', { class: 'slot' + (it ? ' q' + it.q : ''), title: SLOT_NAMES_VI[slot], onclick: () => { if (it) this.itemTip(it, { slot, onChange: render }); } },
           it ? h('img', { src: itemIcon(it) }) : h('span', { class: 'ph', style: { backgroundImage: `url(assets/img/ux/${SLOT_ICON[slot]}.webp)` } })));
@@ -298,7 +298,7 @@ export class UI {
       panel.append(h('div', { class: 'statbox', style: { margin: 'calc(14*var(--u)) 0' } },
         h('span', {}, 'HP', h('b', {}, `${Math.ceil(p.hp)}/${s.max_hp}`)), h('span', {}, 'MP', h('b', {}, `${Math.ceil(p.mp)}/${s.max_mp}`)),
         h('span', {}, 'Tấn công', h('b', {}, `${s.min_atk}-${s.max_atk}`)), h('span', {}, 'Phòng thủ', h('b', {}, s.defense)),
-        h('span', {}, 'Tốc đánh', h('b', {}, s.fin_atk_speed + '%')), h('span', {}, 'Chính xác', h('b', {}, s.hit)),
+        h('span', {}, 'Tốc đánh', h('b', {}, String(s.fin_atk_speed))), h('span', {}, 'Chính xác', h('b', {}, s.hit)),
         h('span', {}, 'Né tránh', h('b', {}, s.dodge)), h('span', {}, 'Chí mạng', h('b', {}, s.critical + '% / +' + s.crit_dam + '%')),
         h('span', {}, 'Kháng Lửa/Băng', h('b', {}, `${s.fire_res}/${s.cold_res}`)), h('span', {}, 'Kháng Sét/Độc', h('b', {}, `${s.light_res}/${s.poison_res}`)),
         h('span', {}, 'EXP', h('b', {}, `${fmt(p.exp)}/${fmt(expRow(p.level)?.NextExp)}`)), h('span', {}, 'Vàng', h('b', {}, fmt(p.gold)))));

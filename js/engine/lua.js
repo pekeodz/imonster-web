@@ -58,6 +58,7 @@ export const Lua = {
     lua.lua_newtable(L);
     for (const k in sw) {
       const fn = sw[k];
+      if (fn && fn.__raw) { lua.lua_pushjsfunction(L, fn.__raw); lua.lua_setfield(L, -2, to_luastring(k)); continue; }
       lua.lua_pushjsfunction(L, (L2) => {
         const n = lua.lua_gettop(L2); const args = [];
         for (let i = 1; i <= n; i++) args.push(read(L2, i));
@@ -117,5 +118,7 @@ export const Lua = {
   get(name) {
     lua.lua_getglobal(L, to_luastring(name)); const v = read(L, -1); lua.lua_pop(L, 1); return v;
   },
+  // raw host function: receives the lua_State directly (needed for integer/float subtype checks)
+  raw(f) { return { __raw: f }; },
   multi(...vals) { vals.__multi = true; return vals; },
 };

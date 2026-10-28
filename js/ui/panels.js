@@ -13,6 +13,8 @@ import { GEM, isGem, socketCount, gemAttrs, inlayCost, inlay, unsocket, breakupR
 import { resetSkills } from '../game/skills.js';
 import { story } from '../game/story.js';
 import { diaryTitle, diaryText, diaryBooks } from '../game/diary.js';
+import { openPackage } from './screens.js';
+import { openSmithy, openInset, openDecompose, openAlchemy } from './forge.js';
 
 const fmt = n => (n | 0).toLocaleString('vi-VN');
 const dia = n => h('span', { class: 'money dia' }, h('i'), fmt(n));
@@ -284,6 +286,38 @@ Object.assign(UI.prototype, {
     panel.append(list);
   },
 
+  // ---- original-layout screens
+  async inventory() {
+    if (this._ccbBusy) return; this._ccbBusy = true;
+    try { await openPackage(this); } catch (e) { console.error(e); this.toast('Lỗi mở túi đồ'); } finally { this._ccbBusy = false; }
+  },
+  ccbOpen(v, focus) {
+    this._ccbStack ||= []; this._ccbStack.push(v);
+    this.screenEl.style.visibility = 'hidden'; this.fxEl.style.visibility = 'hidden';
+    this.g.uiFocus = focus ? { y: 138 } : null;
+  },
+  async openCCB(fn, ...a) {
+    if (this._ccbBusy) return; this._ccbBusy = true;
+    try { await fn(this, ...a); } catch (e) { console.error(e); this.toast('Lỗi mở giao diện'); } finally { this._ccbBusy = false; }
+  },
+  // forge hub: the original camp has the smith (reinforce / refine / recast), the inlay table, the decomposer and the alchemist
+  smithy(tab) {
+    if (tab === 'gem') return this.openCCB(openInset);
+    if (tab === 'brk') return this.openCCB(openDecompose);
+    if (tab === 'frg') return this.openCCB(openAlchemy);
+    if (tab === 'enh' || tab === 0) return this.openCCB(openSmithy, 0);
+    const m = this.modal(h('div', { class: 'panel pop forgehub', style: { top: '30%' } },
+      h('button', { class: 'close', onclick: () => m.close() }), h('h2', {}, 'Lò rèn'),
+      h('div', { class: 'forgegrid' }, [['enh', 'Rèn đồ', 'Cường hoá · Tinh luyện · Đúc lại', 'nicon-4-1-3'], ['gem', 'Khảm ngọc', 'Gắn ngọc vào lỗ trang bị', 'nicon-1-4-1'], ['brk', 'Phân giải', 'Đập đồ lấy nguyên liệu', 'nicon-1-1-2'], ['frg', 'Lò luyện', 'Chế tạo theo công thức', 'icon-6-1-1']].map(([k, t, d]) =>
+        h('button', { class: 'forgebtn', onclick: () => { m.close(); this.smithy(k); } }, h('b', {}, t), h('span', {}, d))))));
+  },
+  ccbClose(v, after) {
+    this._ccbStack = (this._ccbStack || []).filter(x => x !== v);
+    v.close(() => {
+      if (!this._ccbStack.length) { this.screenEl.style.visibility = ''; this.fxEl.style.visibility = ''; this.g.uiFocus = null; }
+      after && after();
+    });
+  },
   loadTip() {
     const rows = DB.tipsRows || []; if (!rows.length || !this.loadEl) return;
     const r = rows[Math.floor(Math.random() * rows.length)];

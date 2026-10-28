@@ -47,9 +47,11 @@ export function unsocket(it, slot) { // the old gem is destroyed, like in the or
 export function breakupResult(it) {
   const r = itemRecord(it);
   const e = toLuaEqu(it); e.is_fashion = r?.Fashion === 1 || r?.Fashion === '1';
+  // white (quality 1) normal gear indexes tItemGroup[0] in formular.lua -> Lua error -> not decomposable
+  if (+e.type !== 32 && !e.is_fashion && (+e.quality || 1) <= 1) return null;
   const res = Lua.call('CalBreakupMaterial', e);
   if (!res || !res[0]) return null;
-  return { id: res[0] | 0, n: Math.max(1, res[1] | 0) };
+  return { id: res[0] | 0, n: res[1] | 0 };
 }
 export function breakup(it) {
   const r = breakupResult(it); if (!r) return null;

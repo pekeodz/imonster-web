@@ -269,8 +269,9 @@ export class Tower {
   }
   addMonster(id, rank, x, y, level) {
     const rec = DB.monster.get(id);
-    let st = monsterStats(rec, level ?? this.level, rank, +this.row.ResInc || 0);
-    if (this.hard) st = Modes.hardScale(st);
+    // rate: GameMap::genRandomMap -> 1 for normal maps (server-side bonus for lv>=21 maps is not available offline)
+    let st = monsterStats(rec, level ?? this.level, rank, +this.row.ResInc || 0, 1);
+    if (this.hard) st = Modes.hardScale(st);   // NON-ORIGINAL: web hard mode (original hard rate came from the server)
     const u = { id, rec, rank, x, y, st, hp: st.max_hp, alive: true, isHero: false, dir: 3, flip: this.rng.chance(0.5), wx: x * T + 50, wy: -(y * T + 50) - 20, aware: false, alpha: 1 };
     this.units.push(u);
     return u;
@@ -518,7 +519,8 @@ export class Tower {
     if (this.hero.alive) this.heroIdle(true);
     if (f.mon.alive && f.mon.actor) { f.mon.actor.cur = null; f.mon.actor.play('stand-1-3', true); }
   }
-  attackInterval(st) { return 2.0 / Math.max(0.2, (st.fin_atk_speed || 100) / 100); }
+  // 100 ATK SPD = one attack / 2 s (Lua doc of attack_speed). No 0.2 s cap: none found in native.
+  attackInterval(st) { const v = st.fin_atk_speed ?? 100; return v > 0 ? 2.0 / (v / 100) : Infinity; }
   idleUnit(u) { if (u.isHero) { if (u.alive) this.heroIdle(true); } else if (u.alive && u.actor) { u.actor.cur = null; u.actor.play('stand-1-3', true); } }
 
   updateFight(dt) {
@@ -618,7 +620,7 @@ export class Tower {
   }
   dropFrom(field, wx, wy) {
     if (!field) return;
-    const luck = (stats().luck || 0) + (this.hard ? 100 : 0);
+    const luck = stats().luck || 0;   // native: no client-side hard-mode LUC bonus (removed web +100)
     const dropId = rollDropSet(field, luck);
     if (!dropId) return;
     const p = P.data, s = stats();
@@ -770,7 +772,8 @@ export class Tower {
     this.fx = this.fx.filter(f => f.t < f.life);
     // camera
     const k = Math.min(1, dt * 6);
-    this.camX += (h.wx - this.camX) * k; this.camY += (h.wy + 40 - this.camY) * k;
+    const fy = this.g.uiFocus ? 75 - this.g.uiFocus.y : 40; // character screen: hero stands in the middle of the equipment ring
+    this.camX += (h.wx - this.camX) * k; this.camY += (h.wy + fy - this.camY) * k;
   }
 
   render() {
